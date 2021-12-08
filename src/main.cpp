@@ -1,3 +1,4 @@
+//TODO : corriger le calcul de l'angle dans timer_callback
 /*****************************************************************************\
  * TP CPE, 4ETI, TP synthese d'images
  * --------------
@@ -24,6 +25,7 @@ text text_to_draw[nb_text];
  * VARIABLES TEMPORAIRES
 /*****************************************/
 float cam1 = 1.0f;
+bool cursor = false;
 
 
 /****************************************
@@ -105,6 +107,9 @@ static void keyboard_callback(unsigned char key, int, int)
     case 27:
       exit(0);
       break;
+    case 'a':
+      cursor = ~cursor;
+      break;
   }
 }
 
@@ -119,21 +124,21 @@ static void special_callback(int key, int, int)
   {
     case GLUT_KEY_UP:
       obj[0].tr.translation.z -= dL;
-      cam.tr.translation.z -= 0.factor*dL*cos(cam_angle_x);
-      cam.tr.translation.y += 0.factor*dL*sin(cam_angle_x);
+      cam.tr.translation.z -= factor*dL*cos(cam_angle_x);
+      cam.tr.translation.y += factor*dL*sin(cam_angle_x);
       break;
     case GLUT_KEY_DOWN:
       obj[0].tr.translation.z += dL;
-      cam.tr.translation.z += 0.factor*dL*cos(cam_angle_x);
-      cam.tr.translation.y -= 0.factor*dL*sin(cam_angle_x);
+      cam.tr.translation.z += factor*dL*cos(cam_angle_x);
+      cam.tr.translation.y -= factor*dL*sin(cam_angle_x);
       break;
     case GLUT_KEY_LEFT:
       obj[0].tr.translation.x -= dL;
-      cam.tr.translation.x -= 0.factor*dL*cos(cam_angle_x);
+      cam.tr.translation.x -= factor*dL*cos(cam_angle_x);
       break;
     case GLUT_KEY_RIGHT:
       obj[0].tr.translation.x += dL;
-      cam.tr.translation.x += 0.factor*dL*cos(cam_angle_x);
+      cam.tr.translation.x += factor*dL*cos(cam_angle_x);
       break;
   }
 
@@ -158,14 +163,45 @@ static void timer_callback(int)
   glutTimerFunc(25, timer_callback, 0);
 
   //Rotation du modèle en fonction des mouvements de la souris
-  glutWarpPointer(300,300);
+  if (!cursor){
+    glutWarpPointer(300,300);
+  }
   obj[0].tr.rotation_euler.y = angle_y_obj_0;
+
+  //Mouvement ennemi  
+  float angle; //Cette variable porte la valeur de l'angle que les ennemis doivent avoir sur l'axe y pour suivre le joueur du regard
+  float dx = obj[2].tr.translation.x - obj[0].tr.translation.x;
+  float dz = obj[2].tr.translation.z - obj[0].tr.translation.z;
+
+  float dL = 0.03f;
+
+  if (dz == 0){
+    angle = -(2*signbit(obj[0].tr.translation.x) - 1)*M_PI/2;
+  }
+  else{
+    if (dz < 0){
+      angle = atan(dx/dz);
+    }
+    else{
+      if (dx < 0){
+        angle = M_PI - abs(atan(dx/dz));
+      }
+      else{
+        angle = -(M_PI - atan(dx/dz));
+      }
+    }
+  }
+  obj[2].tr.rotation_euler.y = angle;
+
+  obj[2].tr.translation.x += dL*sin(obj[2].tr.rotation_euler.y);
+  obj[2].tr.translation.z += dL*cos(obj[2].tr.rotation_euler.y);
+  
+
   //Affichage du modèle
   draw_obj3d(obj,cam);
 
   glutPostRedisplay();
 }
-
 /*****************************************************************************\
 * main                                                                         *
 \*****************************************************************************/
