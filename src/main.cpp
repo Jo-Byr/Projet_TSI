@@ -35,6 +35,7 @@ int mouse_x = 0;
 float angle_x_obj_0 = 0.0f;
 float angle_y_obj_0 = 0.0f;
 static vec3 obj_0_pos_init = vec3(-2.0f,0.0f,-10.0f);
+float rayon_collision = 5.0f * 0.2f; //Le 0.2 vient du scaling du modèle
 
 float cam_x = 0.0f;
 float cam_y = 5.0f;
@@ -169,39 +170,56 @@ static void timer_callback(int)
   obj[0].tr.rotation_euler.y = angle_y_obj_0;
 
   //Mouvement ennemi  
-  float angle; //Cette variable porte la valeur de l'angle que les ennemis doivent avoir sur l'axe y pour suivre le joueur du regard
-  float dx = obj[2].tr.translation.x - obj[0].tr.translation.x;
-  float dz = obj[2].tr.translation.z - obj[0].tr.translation.z;
-
-  float dL = 0.03f;
-
-  if (dz == 0){
-    angle = -(2*signbit(obj[0].tr.translation.x) - 1)*M_PI/2;
-  }
-  else{
-    if (dz < 0){
-      angle = atan(dx/dz);
-    }
-    else{
-      if (dx < 0){
-        angle = M_PI - abs(atan(dx/dz));
-      }
-      else{
-        angle = -(M_PI - atan(dx/dz));
-      }
-    }
-  }
-  obj[2].tr.rotation_euler.y = angle;
-
-  obj[2].tr.translation.x += dL*sin(obj[2].tr.rotation_euler.y);
-  obj[2].tr.translation.z += dL*cos(obj[2].tr.rotation_euler.y);
-  
+  gestion_ennemis();  
 
   //Affichage du modèle
   draw_obj3d(obj,cam);
 
   glutPostRedisplay();
 }
+
+void gestion_ennemis(){
+  float angle; //Cette variable porte la valeur de l'angle que les ennemis doivent avoir sur l'axe y pour suivre le joueur du regard
+  float dx;
+  float dz;
+  vec3 translation;
+
+  int i;
+  for (i = 2;i < nb_obj;i++){
+    dx = obj[i].tr.translation.x - obj[0].tr.translation.x;
+    dz = obj[i].tr.translation.z - obj[0].tr.translation.z;
+
+    float dL = 0.03f;
+
+    if (dz == 0){
+      angle = -(2*signbit(obj[0].tr.translation.x) - 1)*M_PI/2;
+    }
+    else{
+      if (dz < 0){
+        angle = atan(dx/dz);
+      }
+      else{
+        if (dx < 0){
+          angle = M_PI - abs(atan(dx/dz));
+        }
+        else{
+          angle = -(M_PI - atan(dx/dz));
+        }
+      }
+    }
+    obj[i].tr.rotation_euler.y = angle;
+
+    translation = vec3(dL*sin(obj[i].tr.rotation_euler.y),0.0f,dL*cos(obj[i].tr.rotation_euler.y));
+
+    if (std::pow(obj[i].tr.translation.x + translation.x - obj[0].tr.translation.x,2) + std::pow(obj[i].tr.translation.z + translation.z - obj[0].tr.translation.z,2) > std::pow(rayon_collision,2)){
+      obj[i].tr.translation.x += translation.x;
+      obj[i].tr.translation.z += translation.z;
+    }
+
+  }
+}
+
+
 /*****************************************************************************\
 * main                                                                         *
 \*****************************************************************************/
