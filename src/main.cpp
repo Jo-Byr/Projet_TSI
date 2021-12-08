@@ -32,6 +32,13 @@ float cam1 = 1.0f;
 int mouse_x = 0;
 float angle_x_obj_0 = 0.0f;
 float angle_y_obj_0 = 0.0f;
+static vec3 obj_0_pos_init = vec3(-2.0f,0.0f,-10.0f);
+
+float cam_x = 0.0f;
+float cam_y = 5.0f;
+float cam_z = 8.0f;
+
+float cam_angle_x = 0.5*M_PI/2.;
 
 /*****************************************************************************\
 * initialisation                                                              *
@@ -41,8 +48,8 @@ static void init()
   shader_program_id = glhelper::create_program_from_file("shaders/shader.vert", "shaders/shader.frag"); CHECK_GL_ERROR();
 
   cam.projection = matrice_projection(60.0f*M_PI/180.0f,1.0f,0.01f,100.0f);
-  cam.tr.translation = vec3(0.0f, 4.0f, 8.0f);
-  cam.tr.rotation_euler = vec3(0.4*M_PI/2., 0.0f, 0.0f);
+  cam.tr.translation = vec3(cam_x,cam_y,cam_z);
+  cam.tr.rotation_euler = vec3(cam_angle_x, 0.0f, 0.0f);
   // cam.tr.translation = vec3(0.0f, 20.0f, 0.0f);
   // cam.tr.rotation_center = vec3(0.0f, 20.0f, 0.0f);
 
@@ -107,21 +114,29 @@ static void keyboard_callback(unsigned char key, int, int)
 static void special_callback(int key, int, int)
 {
   float dL = 0.1f;
+  float factor = 0.05;
   switch(key)
   {
     case GLUT_KEY_UP:
       obj[0].tr.translation.z -= dL;
+      cam.tr.translation.z -= 0.factor*dL*cos(cam_angle_x);
+      cam.tr.translation.y += 0.factor*dL*sin(cam_angle_x);
       break;
     case GLUT_KEY_DOWN:
       obj[0].tr.translation.z += dL;
+      cam.tr.translation.z += 0.factor*dL*cos(cam_angle_x);
+      cam.tr.translation.y -= 0.factor*dL*sin(cam_angle_x);
       break;
     case GLUT_KEY_LEFT:
       obj[0].tr.translation.x -= dL;
+      cam.tr.translation.x -= 0.factor*dL*cos(cam_angle_x);
       break;
     case GLUT_KEY_RIGHT:
       obj[0].tr.translation.x += dL;
+      cam.tr.translation.x += 0.factor*dL*cos(cam_angle_x);
       break;
   }
+
 }
 
 /*****************************************************************************\
@@ -356,7 +371,7 @@ void init_model_1()
   obj[0].visible = true;
   obj[0].prog = shader_program_id;
 
-  obj[0].tr.translation = vec3(-2.0, 0.0, -10.0);
+  obj[0].tr.translation = obj_0_pos_init;
 }
 
 void init_model_2()
