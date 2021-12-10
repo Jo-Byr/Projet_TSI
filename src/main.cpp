@@ -1,4 +1,6 @@
-//TODO : corriger le calcul de l'angle dans timer_callback
+/*TODO : 
+Mauvaise gestion des collisions entre ennemis et mauvaise maj du nbre d'ennemis
+*/
 /*****************************************************************************\
  * TP CPE, 4ETI, TP synthese d'images
  * --------------
@@ -14,7 +16,7 @@ GLuint gui_program_id;
 
 camera cam;
 
-const int nb_obj = 3;
+const int nb_obj = 100;
 objet3d obj[nb_obj];
 
 const int nb_text = 2;
@@ -37,11 +39,19 @@ float angle_y_obj_0 = 0.0f;
 static vec3 obj_0_pos_init = vec3(-2.0f,0.0f,-10.0f);
 float rayon_collision = 5.0f * 0.2f; //Le 0.2 vient du scaling du modèle
 
+bool HAUT = false;
+bool BAS = false;
+bool GAUCHE = false;
+bool DROITE = false;
+
 float cam_x = 0.0f;
-float cam_y = 5.0f;
+float cam_y = 4.0f;
 float cam_z = 8.0f;
 
 float cam_angle_x = 0.5*M_PI/2.;
+
+int nb_ennemis = 0;
+const int idx_premier_ennemi = 6;
 
 /*****************************************************************************\
 * initialisation                                                              *
@@ -58,7 +68,13 @@ static void init()
 
   init_model_1();
   init_model_2();
-  init_model_3();
+  init_model_wall_N();
+  init_model_wall_E();
+  init_model_wall_S();
+  init_model_wall_W();
+  for (int i = 0;i<10;i++){
+    init_model_3();
+  }
 
   gui_program_id = glhelper::create_program_from_file("shaders/gui.vert", "shaders/gui.frag"); CHECK_GL_ERROR();
 
@@ -119,30 +135,40 @@ static void keyboard_callback(unsigned char key, int, int)
 \*****************************************************************************/
 static void special_callback(int key, int, int)
 {
-  float dL = 0.1f;
-  float factor = 0.05;
   switch(key)
   {
     case GLUT_KEY_UP:
-      obj[0].tr.translation.z -= dL;
-      cam.tr.translation.z -= factor*dL*cos(cam_angle_x);
-      cam.tr.translation.y += factor*dL*sin(cam_angle_x);
+      HAUT = true;
       break;
     case GLUT_KEY_DOWN:
-      obj[0].tr.translation.z += dL;
-      cam.tr.translation.z += factor*dL*cos(cam_angle_x);
-      cam.tr.translation.y -= factor*dL*sin(cam_angle_x);
+      BAS = true;
       break;
     case GLUT_KEY_LEFT:
-      obj[0].tr.translation.x -= dL;
-      cam.tr.translation.x -= factor*dL*cos(cam_angle_x);
+      GAUCHE = true;
       break;
     case GLUT_KEY_RIGHT:
-      obj[0].tr.translation.x += dL;
-      cam.tr.translation.x += factor*dL*cos(cam_angle_x);
+      DROITE = true;
       break;
   }
+}
 
+static void special_up_callback(int key, int, int)
+{
+  switch(key)
+  {
+    case GLUT_KEY_UP:
+      HAUT = false;
+      break;
+    case GLUT_KEY_DOWN:
+      BAS = false;
+      break;
+    case GLUT_KEY_LEFT:
+      GAUCHE = false;
+      break;
+    case GLUT_KEY_RIGHT:
+      DROITE = false;
+      break;
+  }
 }
 
 /*****************************************************************************\
@@ -169,7 +195,10 @@ static void timer_callback(int)
   }
   obj[0].tr.rotation_euler.y = angle_y_obj_0;
 
-  //Mouvement ennemi  
+  //Mouvelent joueur
+  gestion_joueur();
+
+  //Mouvement ennemi + test collision
   gestion_ennemis();  
 
   //Affichage du modèle
@@ -183,9 +212,12 @@ void gestion_ennemis(){
   float dx;
   float dz;
   vec3 translation;
+  int decalage = 0; //Cette variable compte les élements détruits au fur et à mesure afin de mettre à jour la liste obj
+  bool collision_allie = false; //Booléen valant true si l'ennemi considéré est en collision avec un autre
+  bool collision_joueur = false; //Booléen valant true si l'ennemi considéré est en collision avec le joueur
 
-  int i;
-  for (i = 2;i < nb_obj;i++){
+  int i,j;
+  for (i = idx_premier_ennemi;i < idx_premier_ennemi + nb_ennemis;i++){
     dx = obj[i].tr.translation.x - obj[0].tr.translation.x;
     dz = obj[i].tr.translation.z - obj[0].tr.translation.z;
 
@@ -210,15 +242,54 @@ void gestion_ennemis(){
     obj[i].tr.rotation_euler.y = angle;
 
     translation = vec3(dL*sin(obj[i].tr.rotation_euler.y),0.0f,dL*cos(obj[i].tr.rotation_euler.y));
-
-    if (std::pow(obj[i].tr.translation.x + translation.x - obj[0].tr.translation.x,2) + std::pow(obj[i].tr.translation.z + translation.z - obj[0].tr.translation.z,2) > std::pow(rayon_collision,2)){
-      obj[i].tr.translation.x += translation.x;
-      obj[i].tr.translation.z += translation.z;
+    //On teste la collision. On utilise une hitbox sphérique, uniquement vérifiée selon x et z puisqu'aucun personnage ne peut sauter
+    for (j = idx_premier_ennemi;j < idx_premier_ennemi + nb_ennemis;j++){
+      if (j != i){
+        collision_allie |= (std::pow(obj[i].tr.translation.x + translation.x - obj[j].tr.translation.x,2) + std::pow(obj[i].tr.translation.z + translation.z - obj[j].tr.translation.z,2) < std::pow(rayon_collision,2));
+      }
     }
 
+    collision_joueur = std::pow(obj[i].tr.translation.x + translation.x - obj[0].tr.translation.x,2) + std::pow(obj[i].tr.translation.z + translation.z - obj[0].tr.translation.z,2) < std::pow(rayon_collision,2);
+
+    if (!collision_allie && !collision_joueur){
+      obj[i].tr.translation.x += translation.x;
+      obj[i].tr.translation.z += translation.z;
+
+      //On decale l'ojet obj[i] d'autant de places que d'ennemis ont été détruits jusqu'alors
+      obj[i-decalage] = obj[i];
+    }
+    //TEST
+    else if (collision_joueur){
+      //S'il y a collision, l'ennemi est détruit et on met à jour decalage
+      decalage++;
+      nb_ennemis = nb_ennemis - 1;
+    }
   }
 }
 
+void gestion_joueur(){
+  float dL = 0.1f;
+  float factor = 1.0;
+
+  if (HAUT){
+    obj[0].tr.translation.z -= dL;
+    cam.tr.translation.z -= factor*dL*cos(cam_angle_x);
+    cam.tr.translation.y += factor*dL*sin(cam_angle_x);
+  }
+  if (BAS){
+    obj[0].tr.translation.z += dL;
+    cam.tr.translation.z += factor*dL*cos(cam_angle_x);
+    cam.tr.translation.y -= factor*dL*sin(cam_angle_x);
+  }
+  if (GAUCHE){
+    obj[0].tr.translation.x -= dL;
+    cam.tr.translation.x -= factor*dL*cos(cam_angle_x);
+  }
+  if (DROITE){
+    obj[0].tr.translation.x += dL;
+    cam.tr.translation.x += factor*dL*cos(cam_angle_x);
+  }
+}
 
 /*****************************************************************************\
 * main                                                                         *
@@ -233,6 +304,7 @@ int main(int argc, char** argv)
   glutDisplayFunc(display_callback);
   glutKeyboardFunc(keyboard_callback);
   glutSpecialFunc(special_callback);
+  glutSpecialUpFunc(special_up_callback);
 
   //Fonction de mouvement de la souris
   glutPassiveMotionFunc(mouse_move);
@@ -478,6 +550,206 @@ void init_model_2()
   obj[1].prog = shader_program_id;
 }
 
+void init_model_wall_N()
+{
+
+  mesh m;
+
+  //coordonnees geometriques des sommets
+  vec3 p0=vec3(-30.0f,0.0f,-30.0f);
+  vec3 p1=vec3( 30.0f,0.0f,-30.0f);
+  vec3 p2=vec3( -30.0f,10.0f, -30.0f);
+  vec3 p3=vec3(30.0f,10.0f, -30.0f);
+
+  //normales pour chaque sommet
+  vec3 n0=vec3(0.0f,0.0f,1.0f);
+  vec3 n1=n0;
+  vec3 n2=n0;
+  vec3 n3=n0;
+
+  //couleur pour chaque sommet
+  vec3 c0=vec3(1.0f,1.0f,1.0f);
+  vec3 c1=c0;
+  vec3 c2=c0;
+  vec3 c3=c0;
+
+  //texture du sommet
+  vec2 t0=vec2(0.0f,0.0f);
+  vec2 t1=vec2(1.0f,0.0f);
+  vec2 t2=vec2(1.0f,1.0f);
+  vec2 t3=vec2(0.0f,1.0f);
+
+  vertex_opengl v0=vertex_opengl(p0,n0,c0,t0);
+  vertex_opengl v1=vertex_opengl(p1,n1,c1,t1);
+  vertex_opengl v2=vertex_opengl(p2,n2,c2,t2);
+  vertex_opengl v3=vertex_opengl(p3,n3,c3,t3);
+
+  m.vertex = {v0, v1, v2, v3};
+
+  //indice des triangles
+  triangle_index tri0=triangle_index(0,1,2);
+  triangle_index tri1=triangle_index(1,2,3);  
+  m.connectivity = {tri0, tri1};
+
+  obj[2].nb_triangle = 2;
+  obj[2].vao = upload_mesh_to_gpu(m);
+
+  obj[2].texture_id = glhelper::load_texture("data/wall.tga");
+
+  obj[2].visible = true;
+  obj[2].prog = shader_program_id;
+}
+
+void init_model_wall_E()
+{
+
+  mesh m;
+
+  //coordonnees geometriques des sommets
+  vec3 p0=vec3(-30.0f,0.0f,-30.0f);
+  vec3 p1=vec3( -30.0f,0.0f,30.0f);
+  vec3 p2=vec3( -30.0f,10.0f, -30.0f);
+  vec3 p3=vec3(-30.0f,10.0f, 30.0f);
+
+  //normales pour chaque sommet
+  vec3 n0=vec3(1.0f,0.0f,0.0f);
+  vec3 n1=n0;
+  vec3 n2=n0;
+  vec3 n3=n0;
+
+  //couleur pour chaque sommet
+  vec3 c0=vec3(1.0f,1.0f,1.0f);
+  vec3 c1=c0;
+  vec3 c2=c0;
+  vec3 c3=c0;
+
+  //texture du sommet
+  vec2 t0=vec2(0.0f,0.0f);
+  vec2 t1=vec2(1.0f,0.0f);
+  vec2 t2=vec2(1.0f,1.0f);
+  vec2 t3=vec2(0.0f,1.0f);
+
+  vertex_opengl v0=vertex_opengl(p0,n0,c0,t0);
+  vertex_opengl v1=vertex_opengl(p1,n1,c1,t1);
+  vertex_opengl v2=vertex_opengl(p2,n2,c2,t2);
+  vertex_opengl v3=vertex_opengl(p3,n3,c3,t3);
+
+  m.vertex = {v0, v1, v2, v3};
+
+  //indice des triangles
+  triangle_index tri0=triangle_index(0,1,2);
+  triangle_index tri1=triangle_index(1,2,3);  
+  m.connectivity = {tri0, tri1};
+
+  obj[3].nb_triangle = 2;
+  obj[3].vao = upload_mesh_to_gpu(m);
+
+  obj[3].texture_id = glhelper::load_texture("data/wall.tga");
+
+  obj[3].visible = true;
+  obj[3].prog = shader_program_id;
+}
+
+void init_model_wall_S()
+{
+
+  mesh m;
+
+  //coordonnees geometriques des sommets
+  vec3 p0=vec3(30.0f,0.0f,30.0f);
+  vec3 p1=vec3( -30.0f,0.0f,30.0f);
+  vec3 p2=vec3( 30.0f,2.0f, 30.0f);
+  vec3 p3=vec3(-30.0f,2.0f, 30.0f);
+
+  //normales pour chaque sommet
+  vec3 n0=vec3(0.0f,0.0f,-1.0f);
+  vec3 n1=n0;
+  vec3 n2=n0;
+  vec3 n3=n0;
+
+  //couleur pour chaque sommet
+  vec3 c0=vec3(1.0f,1.0f,1.0f);
+  vec3 c1=c0;
+  vec3 c2=c0;
+  vec3 c3=c0;
+
+  //texture du sommet
+  vec2 t0=vec2(0.0f,0.0f);
+  vec2 t1=vec2(1.0f,0.0f);
+  vec2 t2=vec2(1.0f,1.0f);
+  vec2 t3=vec2(0.0f,1.0f);
+
+  vertex_opengl v0=vertex_opengl(p0,n0,c0,t0);
+  vertex_opengl v1=vertex_opengl(p1,n1,c1,t1);
+  vertex_opengl v2=vertex_opengl(p2,n2,c2,t2);
+  vertex_opengl v3=vertex_opengl(p3,n3,c3,t3);
+
+  m.vertex = {v0, v1, v2, v3};
+
+  //indice des triangles
+  triangle_index tri0=triangle_index(0,1,2);
+  triangle_index tri1=triangle_index(1,2,3);  
+  m.connectivity = {tri0, tri1};
+
+  obj[4].nb_triangle = 2;
+  obj[4].vao = upload_mesh_to_gpu(m);
+
+  obj[4].texture_id = glhelper::load_texture("data/wall.tga");
+
+  obj[4].visible = true;
+  obj[4].prog = shader_program_id;
+}
+
+void init_model_wall_W()
+{
+
+  mesh m;
+
+  //coordonnees geometriques des sommets
+  vec3 p0=vec3(30.0f,0.0f,30.0f);
+  vec3 p1=vec3( 30.0f,0.0f,-30.0f);
+  vec3 p2=vec3( 30.0f,10.0f, 30.0f);
+  vec3 p3=vec3(30.0f,10.0f, -30.0f);
+
+  //normales pour chaque sommet
+  vec3 n0=vec3(-1.0f,0.0f,0.0f);
+  vec3 n1=n0;
+  vec3 n2=n0;
+  vec3 n3=n0;
+
+  //couleur pour chaque sommet
+  vec3 c0=vec3(1.0f,1.0f,1.0f);
+  vec3 c1=c0;
+  vec3 c2=c0;
+  vec3 c3=c0;
+
+  //texture du sommet
+  vec2 t0=vec2(0.0f,0.0f);
+  vec2 t1=vec2(1.0f,0.0f);
+  vec2 t2=vec2(1.0f,1.0f);
+  vec2 t3=vec2(0.0f,1.0f);
+
+  vertex_opengl v0=vertex_opengl(p0,n0,c0,t0);
+  vertex_opengl v1=vertex_opengl(p1,n1,c1,t1);
+  vertex_opengl v2=vertex_opengl(p2,n2,c2,t2);
+  vertex_opengl v3=vertex_opengl(p3,n3,c3,t3);
+
+  m.vertex = {v0, v1, v2, v3};
+
+  //indice des triangles
+  triangle_index tri0=triangle_index(0,1,2);
+  triangle_index tri1=triangle_index(1,2,3);  
+  m.connectivity = {tri0, tri1};
+
+  obj[5].nb_triangle = 2;
+  obj[5].vao = upload_mesh_to_gpu(m);
+
+  obj[5].texture_id = glhelper::load_texture("data/wall.tga");
+
+  obj[5].visible = true;
+  obj[5].prog = shader_program_id;
+}
+
 
 void init_model_3()
 {
@@ -486,6 +758,10 @@ void init_model_3()
 
   // Affecte une transformation sur les sommets du maillage
   float s = 0.01f;
+
+  float x = static_cast <float> (rand()) / (static_cast <float> (RAND_MAX/20.0f)) - 10.0f;
+  float z = static_cast <float> (rand()) / (static_cast <float> (RAND_MAX/20.0f)) - 10.0f;
+
   mat4 transform = mat4(   s, 0.0f, 0.0f, 0.0f,
       0.0f,    s, 0.0f, 0.50f,
       0.0f, 0.0f,   s , 0.0f,
@@ -497,13 +773,15 @@ void init_model_3()
   update_normals(&m);
   fill_color(&m,vec3(1.0f,1.0f,1.0f));
 
-  obj[2].vao = upload_mesh_to_gpu(m);
+  obj[idx_premier_ennemi+nb_ennemis].vao = upload_mesh_to_gpu(m);
 
-  obj[2].nb_triangle = m.connectivity.size();
-  obj[2].texture_id = glhelper::load_texture("data/white.tga");
+  obj[idx_premier_ennemi+nb_ennemis].nb_triangle = m.connectivity.size();
+  obj[idx_premier_ennemi+nb_ennemis].texture_id = glhelper::load_texture("data/white.tga");
 
-  obj[2].visible = true;
-  obj[2].prog = shader_program_id;
+  obj[idx_premier_ennemi+nb_ennemis].visible = true;
+  obj[idx_premier_ennemi+nb_ennemis].prog = shader_program_id;
 
-  obj[2].tr.translation = vec3(2.0, 0.0, -10.0);
+  obj[idx_premier_ennemi+nb_ennemis].tr.translation = vec3(2.0 + x, 0.0, -10.0 + z);
+
+  nb_ennemis++;
 }

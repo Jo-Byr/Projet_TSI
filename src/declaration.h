@@ -71,7 +71,12 @@ void draw_text(const text* const t);
 void init_model_1();
 void init_model_2();
 void init_model_3();
+void init_model_wall_N();
+void init_model_wall_E();
+void init_model_wall_S();
+void init_model_wall_W();
 
 void draw_obj3d(const objet3d* const obj, camera cam);
 
 void gestion_ennemis();
+void gestion_joueur();
