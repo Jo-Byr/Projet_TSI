@@ -1,5 +1,5 @@
 /*TODO : 
-Mauvaise gestion des collisions entre ennemis et mauvaise maj du nbre d'ennemis
+Mauvaise gestion des collisions entre ennemis
 */
 /*****************************************************************************\
  * TP CPE, 4ETI, TP synthese d'images
@@ -37,7 +37,7 @@ int mouse_x = 0;
 float angle_x_obj_0 = 0.0f;
 float angle_y_obj_0 = 0.0f;
 static vec3 obj_0_pos_init = vec3(-2.0f,0.0f,-10.0f);
-float rayon_collision = 5.0f * 0.2f; //Le 0.2 vient du scaling du modèle
+float rayon_collision = 4.0f * 0.2f; //Le 0.2 vient du scaling du modèle
 
 bool HAUT = false;
 bool BAS = false;
@@ -212,11 +212,11 @@ void gestion_ennemis(){
   float dx;
   float dz;
   vec3 translation;
-  int decalage = 0; //Cette variable compte les élements détruits au fur et à mesure afin de mettre à jour la liste obj
   bool collision_allie = false; //Booléen valant true si l'ennemi considéré est en collision avec un autre
   bool collision_joueur = false; //Booléen valant true si l'ennemi considéré est en collision avec le joueur
 
   int i,j;
+  
   for (i = idx_premier_ennemi;i < idx_premier_ennemi + nb_ennemis;i++){
     dx = obj[i].tr.translation.x - obj[0].tr.translation.x;
     dz = obj[i].tr.translation.z - obj[0].tr.translation.z;
@@ -243,6 +243,7 @@ void gestion_ennemis(){
 
     translation = vec3(dL*sin(obj[i].tr.rotation_euler.y),0.0f,dL*cos(obj[i].tr.rotation_euler.y));
     //On teste la collision. On utilise une hitbox sphérique, uniquement vérifiée selon x et z puisqu'aucun personnage ne peut sauter
+    
     for (j = idx_premier_ennemi;j < idx_premier_ennemi + nb_ennemis;j++){
       if (j != i){
         collision_allie |= (std::pow(obj[i].tr.translation.x + translation.x - obj[j].tr.translation.x,2) + std::pow(obj[i].tr.translation.z + translation.z - obj[j].tr.translation.z,2) < std::pow(rayon_collision,2));
@@ -254,15 +255,10 @@ void gestion_ennemis(){
     if (!collision_allie && !collision_joueur){
       obj[i].tr.translation.x += translation.x;
       obj[i].tr.translation.z += translation.z;
-
-      //On decale l'ojet obj[i] d'autant de places que d'ennemis ont été détruits jusqu'alors
-      obj[i-decalage] = obj[i];
     }
-    //TEST
     else if (collision_joueur){
-      //S'il y a collision, l'ennemi est détruit et on met à jour decalage
-      decalage++;
-      nb_ennemis = nb_ennemis - 1;
+      //S'il y a collision, l'ennemi est détruit
+      obj[i].visible = false;
     }
   }
 }
