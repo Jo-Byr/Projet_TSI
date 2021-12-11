@@ -1,5 +1,7 @@
 /*TODO : 
 Mauvaise gestion des collisions entre ennemis
+Seule premier carré du projectile pavé apparaît
+Le projectile sphère aparaît décalé
 */
 /*****************************************************************************\
  * TP CPE, 4ETI, TP synthese d'images
@@ -72,9 +74,10 @@ static void init()
   init_model_wall_E();
   init_model_wall_S();
   init_model_wall_W();
-  for (int i = 0;i<10;i++){
+  for (int i = 0;i<0;i++){
     init_model_3();
   }
+  init_model_projectile2(); //Chargement du projectile en mémoire
 
   gui_program_id = glhelper::create_program_from_file("shaders/gui.vert", "shaders/gui.frag"); CHECK_GL_ERROR();
 
@@ -180,6 +183,23 @@ static void mouse_move(int x,int y){
   mouse_x = x;
   
   mouse_x = 300;
+}
+
+static void mouse_click(int button, int state,int x, int y){
+  switch(button)
+  {
+    case GLUT_LEFT_BUTTON:
+      if (state == GLUT_DOWN){
+        init_model_projectile1();
+      }
+      break;
+    
+    case GLUT_RIGHT_BUTTON:
+      if (state == GLUT_DOWN){
+        obj[99].tr.translation = vec3(obj[0].tr.translation.x + 1.2f*sin(obj[0].tr.rotation_euler.y), 0.3f, obj[0].tr.translation.z + 1.2f*cos(obj[0].tr.rotation_euler.y));
+        obj[99].visible = true;
+      }
+  }
 }
 
 /*****************************************************************************\
@@ -305,6 +325,7 @@ int main(int argc, char** argv)
   //Fonction de mouvement de la souris
   glutPassiveMotionFunc(mouse_move);
   glutMotionFunc(mouse_move);
+  glutMouseFunc(mouse_click);
 
   glutTimerFunc(25, timer_callback, 0);
 
@@ -780,4 +801,122 @@ void init_model_3()
   obj[idx_premier_ennemi+nb_ennemis].tr.translation = vec3(2.0 + x, 0.0, -10.0 + z);
 
   nb_ennemis++;
+}
+
+void init_model_projectile1()
+{
+  float dL = 1.0f; //Distance au joueur
+  float dl = 0.12f; //Largeur
+
+  float x1 = obj[0].tr.translation.x + dL*sin(obj[0].tr.rotation_euler.y) + dl/2*cos(obj[0].tr.rotation_euler.y);
+  float x2 = obj[0].tr.translation.x + dL*sin(obj[0].tr.rotation_euler.y) - dl/2*cos(obj[0].tr.rotation_euler.y);
+  float z1 = obj[0].tr.translation.z + dL*cos(obj[0].tr.rotation_euler.y) - dl/2*sin(obj[0].tr.rotation_euler.y);
+  float z2 = obj[0].tr.translation.z + dL*cos(obj[0].tr.rotation_euler.y) + dl/2*sin(obj[0].tr.rotation_euler.y);
+  
+  float x3 = obj[0].tr.translation.x + 1.7*dL*sin(obj[0].tr.rotation_euler.y) + dl/2*cos(obj[0].tr.rotation_euler.y);
+  float x4 = obj[0].tr.translation.x + 1.7*dL*sin(obj[0].tr.rotation_euler.y) - dl/2*cos(obj[0].tr.rotation_euler.y);
+  float z3 = obj[0].tr.translation.z + 1.7*dL*cos(obj[0].tr.rotation_euler.y) - dl/2*sin(obj[0].tr.rotation_euler.y);
+  float z4 = obj[0].tr.translation.z + 1.7*dL*cos(obj[0].tr.rotation_euler.y) + dl/2*sin(obj[0].tr.rotation_euler.y);
+
+  mesh m;
+  //coordonnees geometriques des sommets
+  vec3 p0=vec3(x1,obj[0].tr.rotation_center.y - dl, z1);
+  vec3 p1=vec3(x1,obj[0].tr.rotation_center.y + dl, z1);
+  vec3 p2=vec3(x2,obj[0].tr.rotation_center.y - dl, z2);
+  vec3 p3=vec3(x2,obj[0].tr.rotation_center.y + dl, z2);
+  vec3 p4=vec3(x3,obj[0].tr.rotation_center.y - dl, z3);
+  vec3 p5=vec3(x3,obj[0].tr.rotation_center.y + dl, z3);
+  vec3 p6=vec3(x4,obj[0].tr.rotation_center.y - dl, z4);
+  vec3 p7=vec3(x4,obj[0].tr.rotation_center.y + dl, z4);
+
+  //normales pour chaque sommet
+  vec3 n0=vec3(1.0f,1.0f,1.0f);
+  vec3 n1=n0;
+  vec3 n2=n0;
+  vec3 n3=n0;
+  vec3 n4=n0;
+  vec3 n5=n0;
+  vec3 n6=n0;
+  vec3 n7=n0;
+
+  //couleur pour chaque sommet
+  vec3 c0=vec3(1.0f,0.0f,0.0f);
+  vec3 c1=c0;
+  vec3 c2=c0;
+  vec3 c3=c0;
+  vec3 c4=c0;
+  vec3 c5=c0;
+  vec3 c6=c0;
+  vec3 c7=c0;
+
+  //texture du sommet
+  vec2 t0=vec2(0.0f,0.0f);
+  vec2 t1=vec2(1.0f,0.0f);
+  vec2 t2=vec2(1.0f,1.0f);
+  vec2 t3=vec2(0.0f,1.0f);
+  vec2 t4=vec2(0.0f,0.0f);
+  vec2 t5=vec2(1.0f,0.0f);
+  vec2 t6=vec2(1.0f,1.0f);
+  vec2 t7=vec2(0.0f,1.0f);
+
+  vertex_opengl v0=vertex_opengl(p0,n0,c0,t0);
+  vertex_opengl v1=vertex_opengl(p1,n1,c1,t1);
+  vertex_opengl v2=vertex_opengl(p2,n2,c2,t2);
+  vertex_opengl v3=vertex_opengl(p3,n3,c3,t3);
+  vertex_opengl v4=vertex_opengl(p4,n4,c4,t4);
+  vertex_opengl v5=vertex_opengl(p5,n5,c5,t5);
+  vertex_opengl v6=vertex_opengl(p6,n6,c6,t6);
+  vertex_opengl v7=vertex_opengl(p7,n7,c7,t7);
+
+  m.vertex = {v0, v1, v2, v3, v4, v5, v6, v7};
+
+  //indice des triangles
+  triangle_index tri0=triangle_index(0,1,2);
+  triangle_index tri1=triangle_index(1,2,3);  
+  triangle_index tri2=triangle_index(2,3,6);
+  triangle_index tri3=triangle_index(3,6,7);  
+  triangle_index tri4=triangle_index(3,5,7);
+  triangle_index tri5=triangle_index(1,3,5);  
+  triangle_index tri6=triangle_index(2,4,6);
+  triangle_index tri7=triangle_index(0,2,4);  
+  triangle_index tri8=triangle_index(0,1,4);
+  triangle_index tri9=triangle_index(1,4,5);  
+  triangle_index tri10=triangle_index(4,5,6);
+  triangle_index tri11=triangle_index(5,6,7);  
+  m.connectivity = {tri0, tri1, tri2, tri3, tri4, tri5, tri6, tri7, tri8, tri9, tri10, tri11};
+
+  obj[98].nb_triangle = 12;
+  obj[98].vao = upload_mesh_to_gpu(m);
+
+  obj[98].texture_id = glhelper::load_texture("data/white.tga");
+
+  obj[98].visible = true;
+  obj[98].prog = shader_program_id;
+}
+
+void init_model_projectile2()
+{
+  // Chargement d'un maillage a partir d'un fichier
+  mesh m = load_obj_file("data/sphere.obj");
+
+  // Affecte une transformation sur les sommets du maillage
+  float s = 0.2f;
+  mat4 transform = mat4(   s, 0.0f, 0.0f, 0.0f,
+      0.0f,    s, 0.0f, 0.0f,
+      0.0f, 0.0f,   s , 0.0f,
+      0.0f, 0.0f, 0.0f, 1.0f);
+  apply_deformation(&m,transform);
+
+  // Centre la rotation du modele 1 autour de son centre de gravite approximatif
+  obj[0].tr.rotation_center = vec3(0.0f,0.0f,0.0f);
+
+  update_normals(&m);
+  fill_color(&m,vec3(1.0f,1.0f,1.0f));
+
+  obj[99].vao = upload_mesh_to_gpu(m);
+
+  obj[99].nb_triangle = m.connectivity.size();
+  obj[99].texture_id = glhelper::load_texture("data/white.tga");
+  obj[99].visible = false;
+  obj[99].prog = shader_program_id;
 }

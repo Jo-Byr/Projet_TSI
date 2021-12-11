@@ -75,6 +75,8 @@ void init_model_wall_N();
 void init_model_wall_E();
 void init_model_wall_S();
 void init_model_wall_W();
+void init_model_projectile1();
+void init_model_projectile2();
 
 void draw_obj3d(const objet3d* const obj, camera cam);
 
