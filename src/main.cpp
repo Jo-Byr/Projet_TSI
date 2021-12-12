@@ -35,30 +35,39 @@ bool cursor = false;
 /****************************************
  * VARIABLES GLOBALES
 /*****************************************/
+const float limite = 20.0f; //Définit les dimensions de l'arène
+
 int mouse_x = 0;
 float angle_x_obj_0 = 0.0f;
 float angle_y_obj_0 = 0.0f;
-static vec3 obj_0_pos_init = vec3(-2.0f,0.0f,-10.0f);
+static vec3 obj_0_pos_init = vec3(0.0f,0.0f,0.0f);
 float rayon_collision = 4.0f * 0.2f; //Le 0.2 vient du scaling du modèle
 
+//Booléens de gestion de déplacement du personnage
 bool HAUT = false;
 bool BAS = false;
 bool GAUCHE = false;
 bool DROITE = false;
 
-float cam_x = 0.0f;
-float cam_y = 4.0f;
-float cam_z = 8.0f;
-
+//Coordonnées initiales et angles de la caméra
+float cam_x = obj_0_pos_init.x;
+float cam_y = obj_0_pos_init.y + 4.0f;
+float cam_z = obj_0_pos_init.z + 18.0f;
 float cam_angle_x = 0.5*M_PI/2.;
 
+//Variables ennemies
 int nb_ennemis = 0; //Variable utilisée pour la création des ennemis en mémoire
-const int nb_ennemis_initial = 5; //Nombre d'ennemis au lancement
+const int nb_ennemis_initial = 20; //Nombre d'ennemis au lancement
 const int idx_premier_ennemi = 6; //Indice dans le vecteur obj du premier ennemi, ils sont ensuite tous à la suite
-const int max_ennemi = 20; //Nombre maximal d'ennemis autorisés
+const int max_ennemi = 40; //Nombre maximal d'ennemis autorisés
+int compteur_ennemis = 0; //Compte le nombre de "tours" (25ms) depuis la dernière apparition d'un ennemi
+static int timer_ennemi = 10; //Nombre de "tours" (25ms) entre 2 apparitions d'ennemis
 
-int compteur = 0; //Compte le nombre de "tours" (25ms) depuis la dernière apparition d'un ennemi
-static int timer = 40; //Nombre de "tours" (25ms) entre 2 apparitions d'ennemis
+//Variables projectiles
+int idx_premier_tir = idx_premier_ennemi + max_ennemi; //1er emplacement dans le vecteur obj pour un tir
+int idx_dernier_tir = idx_premier_ennemi + max_ennemi; //Dernier emplacement dans le vecteur obj d'un tir actuellement à l'écran
+int compteur_tir = 0; //Compte le nombre de "tours" depuis le dernier tir gauche
+static int timer_tir = 16; //Nombre minimal de "tours" entre 2 tirs gauches
 
 /*****************************************************************************\
 * initialisation                                                              *
@@ -73,6 +82,7 @@ static void init()
   // cam.tr.translation = vec3(0.0f, 20.0f, 0.0f);
   // cam.tr.rotation_center = vec3(0.0f, 20.0f, 0.0f);
 
+  //Initialisation des murs, du sol et du joueur
   init_model_1();
   init_model_2();
   init_model_wall_N();
@@ -80,7 +90,7 @@ static void init()
   init_model_wall_S();
   init_model_wall_W();
 
-  //On charge tous les ennemis en mémoire, mais on en affiche que 5
+  //On charge tous les ennemis en mémoire, mais on en affiche que quelques-uns
   for (int i = 0;i<max_ennemi;i++){
     init_model_3();
     if (i >= nb_ennemis_initial){
@@ -88,7 +98,8 @@ static void init()
     }
   }
 
-  init_model_projectile2(); //Chargement du projectile en mémoire
+  //On charge le modèle du tir secondaire car il est lent à charger
+  init_model_projectile2();
 
   gui_program_id = glhelper::create_program_from_file("shaders/gui.vert", "shaders/gui.frag"); CHECK_GL_ERROR();
 
@@ -201,13 +212,19 @@ static void mouse_click(int button, int state,int x, int y){
   {
     case GLUT_LEFT_BUTTON:
       if (state == GLUT_DOWN){
-        init_model_projectile1();
+        //On vérifie le temps depuis la dernière création de tir avant d'afficher un nouveau tir
+        if (compteur_tir >= timer_tir){
+          compteur_tir = 0;
+          init_model_projectile1();
+        }
       }
       break;
     
     case GLUT_RIGHT_BUTTON:
-      if (state == GLUT_DOWN){
+      //On change la visibilité et la position de la sphère au moment du clic plutôt que de recharger le modèle
+      if (state == GLUT_DOWN && obj[99].visible == false){
         obj[99].tr.translation = vec3(obj[0].tr.translation.x + 1.2f*sin(obj[0].tr.rotation_euler.y), 0.3f, obj[0].tr.translation.z + 1.2f*cos(obj[0].tr.rotation_euler.y));
+        obj[99].tr.rotation_euler = obj[0].tr.rotation_euler;
         obj[99].visible = true;
       }
   }
@@ -222,16 +239,16 @@ static void timer_callback(int)
   
   //On incrémente le nombre de tours sans apparition d'ennemi
   
-  compteur++;
-  if (compteur >= timer){
+  compteur_ennemis++;
+  if (compteur_ennemis >= timer_ennemi){
     //Si on dépasse la limite timer, on remet le compteur a 0, et on fait apparaître un ennemi suuplémentaire à une position aléatoire
-    compteur = 0;
+    compteur_ennemis = 0;
     for (int i = idx_premier_ennemi ; i < idx_premier_ennemi + max_ennemi ; i++){
       if (obj[i].visible == false){
         obj[i].visible = true;
-        float x = static_cast <float> (rand()) / (static_cast <float> (RAND_MAX/20.0f)) - 10.0f;
-        float z = static_cast <float> (rand()) / (static_cast <float> (RAND_MAX/20.0f)) - 10.0f;
-        obj[i].tr.translation = vec3(2.0 + x, 0.0, -10.0 + z);
+        float x = static_cast <float> (rand()) / (static_cast <float> (RAND_MAX/(2*(limite - rayon_collision)))) - (limite - rayon_collision);
+        float z = static_cast <float> (rand()) / (static_cast <float> (RAND_MAX/(2*(limite - rayon_collision)))) - (limite - rayon_collision);
+        obj[i].tr.translation = vec3(x, 0.0, z);
         break;
       }
     }
@@ -249,6 +266,10 @@ static void timer_callback(int)
 
   //Mouvement ennemi + test collision
   gestion_ennemis();  
+
+  //Mouvement des projectiles + test collision
+  gestion_projectile1();
+  gestion_projectile2();
 
   //Affichage du modèle
   draw_obj3d(obj,cam);
@@ -269,7 +290,7 @@ void gestion_ennemis(){
   
   for (i = idx_premier_ennemi;i < idx_premier_ennemi + max_ennemi;i++){
     if (obj[i].visible){
-
+      //On fait en sorte que tous les ennemis affichés à l'écran se tournent vers le joueur
       dx = obj[i].tr.translation.x - obj[0].tr.translation.x;
       dz = obj[i].tr.translation.z - obj[0].tr.translation.z;
 
@@ -291,11 +312,12 @@ void gestion_ennemis(){
       }
       obj[i].tr.rotation_euler.y = angle;
 
+
       translation = vec3(dL*sin(obj[i].tr.rotation_euler.y),0.0f,dL*cos(obj[i].tr.rotation_euler.y));
       //On teste la collision. On utilise une hitbox sphérique, uniquement vérifiée selon x et z puisqu'aucun personnage ne peut sauter
 
-      collision_joueur = std::pow(obj[i].tr.translation.x + translation.x - obj[0].tr.translation.x,2) + std::pow(obj[i].tr.translation.z + translation.z - obj[0].tr.translation.z,2) < std::pow(rayon_collision,2);
-
+      collision_joueur = (distance(i,0) < rayon_collision);
+      
       if (!collision_joueur){
         obj[i].tr.translation.x += translation.x;
         obj[i].tr.translation.z += translation.z;
@@ -313,24 +335,80 @@ void gestion_joueur(){
   float dL = 0.1f;
   float factor = 1.0;
 
-  if (HAUT){
+  if (HAUT && obj[0].tr.translation.z > -limite + rayon_collision){
     obj[0].tr.translation.z -= dL;
     cam.tr.translation.z -= factor*dL*cos(cam_angle_x);
     cam.tr.translation.y += factor*dL*sin(cam_angle_x);
   }
-  if (BAS){
+  if (BAS && obj[0].tr.translation.z < limite - rayon_collision){
     obj[0].tr.translation.z += dL;
     cam.tr.translation.z += factor*dL*cos(cam_angle_x);
     cam.tr.translation.y -= factor*dL*sin(cam_angle_x);
   }
-  if (GAUCHE){
+  if (GAUCHE && obj[0].tr.translation.x > -limite + rayon_collision){
     obj[0].tr.translation.x -= dL;
     cam.tr.translation.x -= factor*dL*cos(cam_angle_x);
   }
-  if (DROITE){
+  if (DROITE && obj[0].tr.translation.x < limite - rayon_collision){
     obj[0].tr.translation.x += dL;
     cam.tr.translation.x += factor*dL*cos(cam_angle_x);
   }
+}
+
+//Déplace et teste les collisions de chaque "tir gauche" actuellement à l'écran
+void gestion_projectile1(){
+  float speed = 0.7f;
+  int i,j;
+
+  compteur_tir++;
+
+  for (i = idx_premier_tir ; i <= idx_dernier_tir ; i++){
+    if (obj[i].visible){
+      obj[i].tr.translation += vec3(sin(obj[i].tr.rotation_euler.y)*speed , 0.0f , cos(obj[i].tr.rotation_euler.y)*speed);
+
+      //Si l'objet sort des limites de l'arène, il disparaît
+      if (obj[i].tr.translation.x < -limite || obj[i].tr.translation.x > limite || obj[i].tr.translation.z < -limite || obj[i].tr.translation.z > limite){
+        obj[i].visible = false;
+      }
+      //S'il touche un ennemi il disparaît, et l'ennemi avec
+      else{
+        for (j = idx_premier_ennemi ; j < idx_premier_ennemi + max_ennemi ; j++){
+          if (obj[j].visible){
+            if (distance(j,i) < rayon_collision){
+              obj[i].visible = false; //Désaffichage du tir
+              obj[j].visible = false; //Désaffichage de l'ennemi
+              break;
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+//Fonction de mouvement du projectile sphèrique
+void gestion_projectile2(){
+  vec3 translation = vec3(sin(obj[99].tr.rotation_euler.y)*0.2f , 0.0f , cos(obj[99].tr.rotation_euler.y)*0.2f);
+  float rayon = 1.2f; //Rayon de collision de la sphère
+
+  if (obj[99].visible){
+    obj[99].tr.translation += translation;
+    for (int i = idx_premier_ennemi ; i < max_ennemi + idx_premier_ennemi ; i++){
+      //On teste la collision avec tous les ennemis visibles à l'écran
+      if(obj[i].visible && distance(i,99) < rayon){
+        obj[i].visible = false; //Destruction de l'ennemi
+      }
+    }
+
+    //Test de sortie d'arène
+    if (-limite > obj[99].tr.translation.x || obj[99].tr.translation.x > limite || -limite > obj[99].tr.translation.z || obj[99].tr.translation.z > limite){
+      obj[99].visible = false;
+    }
+  }
+}
+
+float distance(int i, int j){
+  return std::pow(std::pow(obj[i].tr.translation.x - obj[j].tr.translation.x, 2) + std::pow(obj[i].tr.translation.z - obj[j].tr.translation.z, 2),0.5f);
 }
 
 /*****************************************************************************\
@@ -549,10 +627,10 @@ void init_model_2()
   mesh m;
 
   //coordonnees geometriques des sommets
-  vec3 p0=vec3(-30.0f,0.0f,-30.0f);
-  vec3 p1=vec3( 30.0f,0.0f,-30.0f);
-  vec3 p2=vec3( 30.0f,0.0f, 30.0f);
-  vec3 p3=vec3(-30.0f,0.0f, 30.0f);
+  vec3 p0=vec3(-limite,0.0f,-limite);
+  vec3 p1=vec3( limite,0.0f,-limite);
+  vec3 p2=vec3( limite,0.0f, limite);
+  vec3 p3=vec3(-limite,0.0f, limite);
 
   //normales pour chaque sommet
   vec3 n0=vec3(0.0f,1.0f,0.0f);
@@ -599,10 +677,10 @@ void init_model_wall_N()
   mesh m;
 
   //coordonnees geometriques des sommets
-  vec3 p0=vec3(-30.0f,0.0f,-30.0f);
-  vec3 p1=vec3( 30.0f,0.0f,-30.0f);
-  vec3 p2=vec3( -30.0f,10.0f, -30.0f);
-  vec3 p3=vec3(30.0f,10.0f, -30.0f);
+  vec3 p0=vec3(-limite,0.0f,-limite);
+  vec3 p1=vec3( limite,0.0f,-limite);
+  vec3 p2=vec3( -limite,10.0f, -limite);
+  vec3 p3=vec3(limite,10.0f, -limite);
 
   //normales pour chaque sommet
   vec3 n0=vec3(0.0f,0.0f,1.0f);
@@ -649,10 +727,10 @@ void init_model_wall_E()
   mesh m;
 
   //coordonnees geometriques des sommets
-  vec3 p0=vec3(-30.0f,0.0f,-30.0f);
-  vec3 p1=vec3( -30.0f,0.0f,30.0f);
-  vec3 p2=vec3( -30.0f,10.0f, -30.0f);
-  vec3 p3=vec3(-30.0f,10.0f, 30.0f);
+  vec3 p0=vec3(-limite,0.0f,-limite);
+  vec3 p1=vec3( -limite,0.0f,limite);
+  vec3 p2=vec3( -limite,10.0f, -limite);
+  vec3 p3=vec3(-limite,10.0f, limite);
 
   //normales pour chaque sommet
   vec3 n0=vec3(1.0f,0.0f,0.0f);
@@ -699,10 +777,10 @@ void init_model_wall_S()
   mesh m;
 
   //coordonnees geometriques des sommets
-  vec3 p0=vec3(30.0f,0.0f,30.0f);
-  vec3 p1=vec3( -30.0f,0.0f,30.0f);
-  vec3 p2=vec3( 30.0f,2.0f, 30.0f);
-  vec3 p3=vec3(-30.0f,2.0f, 30.0f);
+  vec3 p0=vec3(limite,0.0f,limite);
+  vec3 p1=vec3( -limite,0.0f,limite);
+  vec3 p2=vec3( limite,2.0f, limite);
+  vec3 p3=vec3(-limite,2.0f, limite);
 
   //normales pour chaque sommet
   vec3 n0=vec3(0.0f,0.0f,-1.0f);
@@ -749,10 +827,10 @@ void init_model_wall_W()
   mesh m;
 
   //coordonnees geometriques des sommets
-  vec3 p0=vec3(30.0f,0.0f,30.0f);
-  vec3 p1=vec3( 30.0f,0.0f,-30.0f);
-  vec3 p2=vec3( 30.0f,10.0f, 30.0f);
-  vec3 p3=vec3(30.0f,10.0f, -30.0f);
+  vec3 p0=vec3(limite,0.0f,limite);
+  vec3 p1=vec3( limite,0.0f,-limite);
+  vec3 p2=vec3( limite,10.0f, limite);
+  vec3 p3=vec3(limite,10.0f, -limite);
 
   //normales pour chaque sommet
   vec3 n0=vec3(-1.0f,0.0f,0.0f);
@@ -802,8 +880,8 @@ void init_model_3()
   // Affecte une transformation sur les sommets du maillage
   float s = 0.01f;
 
-  float x = static_cast <float> (rand()) / (static_cast <float> (RAND_MAX/20.0f)) - 10.0f;
-  float z = static_cast <float> (rand()) / (static_cast <float> (RAND_MAX/20.0f)) - 10.0f;
+  float x = static_cast <float> (rand()) / (static_cast <float> (RAND_MAX/(2*(limite - rayon_collision)))) - (limite - rayon_collision);
+  float z = static_cast <float> (rand()) / (static_cast <float> (RAND_MAX/(2*(limite - rayon_collision)))) - (limite - rayon_collision);
 
   mat4 transform = mat4(   s, 0.0f, 0.0f, 0.0f,
       0.0f,    s, 0.0f, 0.50f,
@@ -824,46 +902,50 @@ void init_model_3()
   obj[idx_premier_ennemi+nb_ennemis].visible = true;
   obj[idx_premier_ennemi+nb_ennemis].prog = shader_program_id;
 
-  obj[idx_premier_ennemi+nb_ennemis].tr.translation = vec3(2.0 + x, 0.0, -10.0 + z);
+  obj[idx_premier_ennemi+nb_ennemis].tr.translation = vec3(x, 0.0, z);
 
   nb_ennemis++;
 }
 
 void init_model_projectile1()
 {
-  float dL = 1.0f; //Distance au joueur
-  float dl = 0.12f; //Largeur
+  float dL = 1.5f; //Distance au joueur
+  float dl = 0.05f; //Largeur
+  float longueur = 0.7f;
 
-  float x1 = obj[0].tr.translation.x + dL*sin(obj[0].tr.rotation_euler.y) + dl/2*cos(obj[0].tr.rotation_euler.y);
-  float x2 = obj[0].tr.translation.x + dL*sin(obj[0].tr.rotation_euler.y) - dl/2*cos(obj[0].tr.rotation_euler.y);
-  float z1 = obj[0].tr.translation.z + dL*cos(obj[0].tr.rotation_euler.y) - dl/2*sin(obj[0].tr.rotation_euler.y);
-  float z2 = obj[0].tr.translation.z + dL*cos(obj[0].tr.rotation_euler.y) + dl/2*sin(obj[0].tr.rotation_euler.y);
+  float x1 = -dl;
+  float x2 = dl;
+  float z1 = -longueur/2;
+  float z2 = -longueur/2;
   
-  float x3 = obj[0].tr.translation.x + 1.7*dL*sin(obj[0].tr.rotation_euler.y) + dl/2*cos(obj[0].tr.rotation_euler.y);
-  float x4 = obj[0].tr.translation.x + 1.7*dL*sin(obj[0].tr.rotation_euler.y) - dl/2*cos(obj[0].tr.rotation_euler.y);
-  float z3 = obj[0].tr.translation.z + 1.7*dL*cos(obj[0].tr.rotation_euler.y) - dl/2*sin(obj[0].tr.rotation_euler.y);
-  float z4 = obj[0].tr.translation.z + 1.7*dL*cos(obj[0].tr.rotation_euler.y) + dl/2*sin(obj[0].tr.rotation_euler.y);
+  float x3 = -dl;
+  float x4 = dl;
+  float z3 = longueur/2;
+  float z4 = longueur/2;
+
+  float y1 = -dl/2;
+  float y2 = dl/2;
 
   mesh m;
   //coordonnees geometriques des sommets
-  vec3 p0=vec3(x1,obj[0].tr.rotation_center.y - dl, z1);
-  vec3 p1=vec3(x1,obj[0].tr.rotation_center.y + dl, z1);
-  vec3 p2=vec3(x2,obj[0].tr.rotation_center.y - dl, z2);
-  vec3 p3=vec3(x2,obj[0].tr.rotation_center.y + dl, z2);
-  vec3 p4=vec3(x3,obj[0].tr.rotation_center.y - dl, z3);
-  vec3 p5=vec3(x3,obj[0].tr.rotation_center.y + dl, z3);
-  vec3 p6=vec3(x4,obj[0].tr.rotation_center.y - dl, z4);
-  vec3 p7=vec3(x4,obj[0].tr.rotation_center.y + dl, z4);
+  vec3 p0=vec3(x1,y1, z1);
+  vec3 p1=vec3(x1,dl, z1);
+  vec3 p2=vec3(x2,-dl, z2);
+  vec3 p3=vec3(x2,dl, z2);
+  vec3 p4=vec3(x3,-dl, z3);
+  vec3 p5=vec3(x3,dl, z3);
+  vec3 p6=vec3(x4,-dl, z4);
+  vec3 p7=vec3(x4,dl, z4);
 
   //normales pour chaque sommet
-  vec3 n0=vec3(1.0f,1.0f,1.0f);
-  vec3 n1=n0;
-  vec3 n2=n0;
-  vec3 n3=n0;
-  vec3 n4=n0;
-  vec3 n5=n0;
-  vec3 n6=n0;
-  vec3 n7=n0;
+  vec3 n0=vec3(-1.0f,-1.0f,-1.0f);
+  vec3 n1=vec3(-1.0f,1.0f,-1.0f);
+  vec3 n2=vec3(1.0f,-1.0f,-1.0f);
+  vec3 n3=vec3(1.0f,1.0f,-1.0f);
+  vec3 n4=vec3(-1.0f,-1.0f,1.0f);
+  vec3 n5=vec3(-1.0f,1.0f,1.0f);
+  vec3 n6=vec3(1.0f,-1.0f,1.0f);
+  vec3 n7=vec3(1.0f,1.0f,1.0f);
 
   //couleur pour chaque sommet
   vec3 c0=vec3(1.0f,0.0f,0.0f);
@@ -911,13 +993,28 @@ void init_model_projectile1()
   triangle_index tri11=triangle_index(5,6,7);  
   m.connectivity = {tri0, tri1, tri2, tri3, tri4, tri5, tri6, tri7, tri8, tri9, tri10, tri11};
 
-  obj[98].nb_triangle = 12;
-  obj[98].vao = upload_mesh_to_gpu(m);
+  //On recherche le 1er emplacement libre pour un tir
+  int i = 0;
+  while (obj[idx_premier_tir + i].visible){
+    i++;
+  }
+  
+  //Et on met à jour, si nécessaire, l'emplacement du dernier tir
+  if (idx_premier_tir + i > idx_dernier_tir){
+    idx_dernier_tir = idx_premier_tir + i;
+  }
+  
+  obj[idx_premier_tir + i].nb_triangle = 12;
+  obj[idx_premier_tir + i].vao = upload_mesh_to_gpu(m);
 
-  obj[98].texture_id = glhelper::load_texture("data/white.tga");
+  obj[idx_premier_tir + i].texture_id = glhelper::load_texture("data/white.tga");
 
-  obj[98].visible = true;
-  obj[98].prog = shader_program_id;
+  obj[idx_premier_tir + i].visible = true;
+
+  obj[idx_premier_tir + i].tr.rotation_euler = obj[0].tr.rotation_euler;
+  obj[idx_premier_tir + i].tr.translation = vec3(obj[0].tr.translation.x + dL*sin(obj[0].tr.rotation_euler.y),0.4f, obj[0].tr.translation.z + dL*cos(obj[0].tr.rotation_euler.y));
+
+  obj[idx_premier_tir + i].prog = shader_program_id;
 }
 
 void init_model_projectile2()
@@ -926,7 +1023,7 @@ void init_model_projectile2()
   mesh m = load_obj_file("data/sphere.obj");
 
   // Affecte une transformation sur les sommets du maillage
-  float s = 0.2f;
+  float s = 0.8f;
   mat4 transform = mat4(   s, 0.0f, 0.0f, 0.0f,
       0.0f,    s, 0.0f, 0.0f,
       0.0f, 0.0f,   s , 0.0f,
@@ -934,7 +1031,7 @@ void init_model_projectile2()
   apply_deformation(&m,transform);
 
   // Centre la rotation du modele 1 autour de son centre de gravite approximatif
-  obj[0].tr.rotation_center = vec3(0.0f,0.0f,0.0f);
+  obj[99].tr.rotation_center = vec3(0.0f,0.0f,0.0f);
 
   update_normals(&m);
   fill_color(&m,vec3(1.0f,1.0f,1.0f));

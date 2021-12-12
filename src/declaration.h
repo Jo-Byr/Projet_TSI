@@ -82,3 +82,7 @@ void draw_obj3d(const objet3d* const obj, camera cam);
 
 void gestion_ennemis();
 void gestion_joueur();
+void gestion_projectile1();
+void gestion_projectile2();
+
+float distance(int i, int j);
