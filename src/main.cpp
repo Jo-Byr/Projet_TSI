@@ -52,8 +52,13 @@ float cam_z = 8.0f;
 
 float cam_angle_x = 0.5*M_PI/2.;
 
-int nb_ennemis = 0;
-const int idx_premier_ennemi = 6;
+int nb_ennemis = 0; //Variable utilisée pour la création des ennemis en mémoire
+const int nb_ennemis_initial = 5; //Nombre d'ennemis au lancement
+const int idx_premier_ennemi = 6; //Indice dans le vecteur obj du premier ennemi, ils sont ensuite tous à la suite
+const int max_ennemi = 20; //Nombre maximal d'ennemis autorisés
+
+int compteur = 0; //Compte le nombre de "tours" (25ms) depuis la dernière apparition d'un ennemi
+static int timer = 40; //Nombre de "tours" (25ms) entre 2 apparitions d'ennemis
 
 /*****************************************************************************\
 * initialisation                                                              *
@@ -74,9 +79,15 @@ static void init()
   init_model_wall_E();
   init_model_wall_S();
   init_model_wall_W();
-  for (int i = 0;i<0;i++){
+
+  //On charge tous les ennemis en mémoire, mais on en affiche que 5
+  for (int i = 0;i<max_ennemi;i++){
     init_model_3();
+    if (i >= nb_ennemis_initial){
+      obj[idx_premier_ennemi + i].visible = false;
+    }
   }
+
   init_model_projectile2(); //Chargement du projectile en mémoire
 
   gui_program_id = glhelper::create_program_from_file("shaders/gui.vert", "shaders/gui.frag"); CHECK_GL_ERROR();
@@ -208,6 +219,24 @@ static void mouse_click(int button, int state,int x, int y){
 static void timer_callback(int)
 {
   glutTimerFunc(25, timer_callback, 0);
+  
+  //On incrémente le nombre de tours sans apparition d'ennemi
+  
+  compteur++;
+  if (compteur >= timer){
+    //Si on dépasse la limite timer, on remet le compteur a 0, et on fait apparaître un ennemi suuplémentaire à une position aléatoire
+    compteur = 0;
+    for (int i = idx_premier_ennemi ; i < idx_premier_ennemi + max_ennemi ; i++){
+      if (obj[i].visible == false){
+        obj[i].visible = true;
+        float x = static_cast <float> (rand()) / (static_cast <float> (RAND_MAX/20.0f)) - 10.0f;
+        float z = static_cast <float> (rand()) / (static_cast <float> (RAND_MAX/20.0f)) - 10.0f;
+        obj[i].tr.translation = vec3(2.0 + x, 0.0, -10.0 + z);
+        break;
+      }
+    }
+  }
+  
 
   //Rotation du modèle en fonction des mouvements de la souris
   if (!cursor){
@@ -215,7 +244,7 @@ static void timer_callback(int)
   }
   obj[0].tr.rotation_euler.y = angle_y_obj_0;
 
-  //Mouvelent joueur
+  //Mouvement joueur
   gestion_joueur();
 
   //Mouvement ennemi + test collision
@@ -227,62 +256,59 @@ static void timer_callback(int)
   glutPostRedisplay();
 }
 
+//Fonction de déplacement des ennemis
 void gestion_ennemis(){
   float angle; //Cette variable porte la valeur de l'angle que les ennemis doivent avoir sur l'axe y pour suivre le joueur du regard
-  float dx;
-  float dz;
+  float dx; //Distance en x entre un ennemi et le joueur
+  float dz; //Distance en z entre un ennemi et le joueur
+  float dL = 0.03f; //Constante de déplacement des ennemis
   vec3 translation;
-  bool collision_allie = false; //Booléen valant true si l'ennemi considéré est en collision avec un autre
   bool collision_joueur = false; //Booléen valant true si l'ennemi considéré est en collision avec le joueur
 
   int i,j;
   
-  for (i = idx_premier_ennemi;i < idx_premier_ennemi + nb_ennemis;i++){
-    dx = obj[i].tr.translation.x - obj[0].tr.translation.x;
-    dz = obj[i].tr.translation.z - obj[0].tr.translation.z;
+  for (i = idx_premier_ennemi;i < idx_premier_ennemi + max_ennemi;i++){
+    if (obj[i].visible){
 
-    float dL = 0.03f;
+      dx = obj[i].tr.translation.x - obj[0].tr.translation.x;
+      dz = obj[i].tr.translation.z - obj[0].tr.translation.z;
 
-    if (dz == 0){
-      angle = -(2*signbit(obj[0].tr.translation.x) - 1)*M_PI/2;
-    }
-    else{
-      if (dz < 0){
-        angle = atan(dx/dz);
+      if (dz == 0){
+        angle = -(2*signbit(obj[0].tr.translation.x) - 1)*M_PI/2;
       }
       else{
-        if (dx < 0){
-          angle = M_PI - abs(atan(dx/dz));
+        if (dz < 0){
+          angle = atan(dx/dz);
         }
         else{
-          angle = -(M_PI - atan(dx/dz));
+          if (dx < 0){
+            angle = M_PI - abs(atan(dx/dz));
+          }
+          else{
+            angle = -(M_PI - atan(dx/dz));
+          }
         }
       }
-    }
-    obj[i].tr.rotation_euler.y = angle;
+      obj[i].tr.rotation_euler.y = angle;
 
-    translation = vec3(dL*sin(obj[i].tr.rotation_euler.y),0.0f,dL*cos(obj[i].tr.rotation_euler.y));
-    //On teste la collision. On utilise une hitbox sphérique, uniquement vérifiée selon x et z puisqu'aucun personnage ne peut sauter
-    
-    for (j = idx_premier_ennemi;j < idx_premier_ennemi + nb_ennemis;j++){
-      if (j != i){
-        collision_allie |= (std::pow(obj[i].tr.translation.x + translation.x - obj[j].tr.translation.x,2) + std::pow(obj[i].tr.translation.z + translation.z - obj[j].tr.translation.z,2) < std::pow(rayon_collision,2));
+      translation = vec3(dL*sin(obj[i].tr.rotation_euler.y),0.0f,dL*cos(obj[i].tr.rotation_euler.y));
+      //On teste la collision. On utilise une hitbox sphérique, uniquement vérifiée selon x et z puisqu'aucun personnage ne peut sauter
+
+      collision_joueur = std::pow(obj[i].tr.translation.x + translation.x - obj[0].tr.translation.x,2) + std::pow(obj[i].tr.translation.z + translation.z - obj[0].tr.translation.z,2) < std::pow(rayon_collision,2);
+
+      if (!collision_joueur){
+        obj[i].tr.translation.x += translation.x;
+        obj[i].tr.translation.z += translation.z;
       }
-    }
-
-    collision_joueur = std::pow(obj[i].tr.translation.x + translation.x - obj[0].tr.translation.x,2) + std::pow(obj[i].tr.translation.z + translation.z - obj[0].tr.translation.z,2) < std::pow(rayon_collision,2);
-
-    if (!collision_allie && !collision_joueur){
-      obj[i].tr.translation.x += translation.x;
-      obj[i].tr.translation.z += translation.z;
-    }
-    else if (collision_joueur){
-      //S'il y a collision, l'ennemi est détruit
-      obj[i].visible = false;
+      else {
+        //S'il y a collision, l'ennemi est détruit
+        obj[i].visible = false;
+      }
     }
   }
 }
 
+//Fonction de déplacement du joueur
 void gestion_joueur(){
   float dL = 0.1f;
   float factor = 1.0;
