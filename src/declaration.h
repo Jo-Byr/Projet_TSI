@@ -88,3 +88,10 @@ void gestion_projectile1();
 void gestion_projectile2();
 
 float distance(int i, int j);
+
+
+static void init_model_bar();
+void draw_PV();
+void draw_ULT();
+
+void init_model_1_grand();

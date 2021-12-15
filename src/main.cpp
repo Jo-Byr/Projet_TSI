@@ -31,7 +31,6 @@ text text_to_draw[nb_text];
 float cam1 = 1.0f;
 bool cursor = false;
 
-
 /****************************************
  * VARIABLES GLOBALES
 /*****************************************/
@@ -41,8 +40,17 @@ float angle_y_obj_0 = 0.0;
 int mouse_x = 0;
 static vec3 obj_0_pos_init = vec3(0.0f,0.0f,0.0f);
 float rayon_collision = 4.0f * 0.2f; //Le 0.2 vient du scaling du modèle
-int PV = 10; //Points de vie du joueur
+int PV_MAX = 30; //Points de vie du joueur
+int PV = PV_MAX; //Points de vie du joueur
 bool PERDU = false; //Booléen disant si c'est perdu
+int ULT = 0; //Compteur de points de capacité ultime
+int ULT_MAX = 40; //Valeur maximale du compteur d'ultime
+bool GOD_MODE = false;
+int compteur_god_mode = 0; //Nombre de tours passés en god mode
+int limite_god_mode = 5000/25; //Temps maximum passable en godmode
+
+GLuint petit_dino; //Version petite du vao du dino
+GLuint grand_dino; //Version grande du vao du dino
 
 //Booléens de gestion de déplacement du personnage
 bool HAUT = false;
@@ -84,6 +92,8 @@ static void init()
   // cam.tr.rotation_center = vec3(0.0f, 20.0f, 0.0f);
 
   //Initialisation des murs, du sol et du joueur
+  init_model_1_grand();
+
   init_model_1();
   init_model_2();
   init_model_wall_N();
@@ -115,6 +125,9 @@ static void init()
   text_to_draw[1].value = "Lyon";
   text_to_draw[1].bottomLeft.y = 0.0f;
   text_to_draw[1].topRight.y = 0.5f;
+  
+
+  init_model_bar();
 
   //On retire le curseur
   glutSetCursor(GLUT_CURSOR_NONE);
@@ -133,6 +146,10 @@ static void init()
 
   for(int i = 0; i < nb_text; ++i)
     draw_text(text_to_draw + i);
+
+
+  draw_PV();
+  draw_ULT();
 
   glutSwapBuffers();
 }
@@ -154,6 +171,15 @@ static void keyboard_callback(unsigned char key, int, int)
       break;
     case 'a':
       cursor = ~cursor;
+      break;
+    //Barre d'espace
+    case 32:
+    if (ULT == ULT_MAX){
+      GOD_MODE = true;
+      obj[0].vao = grand_dino;
+      std::cout << "!" << std::endl;
+      ULT = 0;
+    }
       break;
   }
 }
@@ -241,7 +267,6 @@ static void mouse_click(int button, int state,int x, int y){
 static void timer_callback(int)
 {
   glutTimerFunc(25, timer_callback, 0);
-  std::cout << PV << std::endl;
 
   //Rotation du modèle en fonction des mouvements de la souris
   if (!cursor){
@@ -332,7 +357,9 @@ void gestion_ennemis(){
       else {
         //S'il y a collision, l'ennemi est détruit et le joueur perd un point de vie
         obj[i].visible = false;
-        PV --;
+        if (!GOD_MODE){
+          PV --;
+        }          
       }
     }
   }
@@ -345,6 +372,14 @@ void gestion_joueur(){
 
   if (PV <= 0){
     PERDU = true;
+  }
+
+  if (GOD_MODE){
+    compteur_god_mode++;
+    if (compteur_god_mode >= limite_god_mode){
+      compteur_god_mode = 0;
+      obj[0].vao = petit_dino;
+    }
   }
 
   if (HAUT && obj[0].tr.translation.z > -limite + rayon_collision){
@@ -382,13 +417,17 @@ void gestion_projectile1(){
       if (obj[i].tr.translation.x < -limite || obj[i].tr.translation.x > limite || obj[i].tr.translation.z < -limite || obj[i].tr.translation.z > limite){
         obj[i].visible = false;
       }
-      //S'il touche un ennemi il disparaît, et l'ennemi avec
+      //S'il touche un ennemi il disparaît, et l'ennemi avec, et le compteur d'ult est augmenté
       else{
         for (j = idx_premier_ennemi ; j < idx_premier_ennemi + max_ennemi ; j++){
           if (obj[j].visible){
             if (distance(j,i) < rayon_collision){
               obj[i].visible = false; //Désaffichage du tir
               obj[j].visible = false; //Désaffichage de l'ennemi
+              
+              if (ULT < ULT_MAX){
+                ULT++;
+              }
               break;
             }
           }
@@ -409,6 +448,11 @@ void gestion_projectile2(){
       //On teste la collision avec tous les ennemis visibles à l'écran
       if(obj[i].visible && distance(i,nb_obj - 1) < rayon){
         obj[i].visible = false; //Destruction de l'ennemi
+
+        //Mise à jour de l'ultime    
+        if (ULT < ULT_MAX){
+          ULT++;
+        }
       }
     }
 
@@ -466,7 +510,8 @@ void draw_text(const text * const t)
   glDisable(GL_DEPTH_TEST);
   glUseProgram(t->prog);
 
-  vec2 size = (t->topRight - t->bottomLeft) / float(t->value.size());
+  vec2 size = (t->topRight - t->bottomLeft);
+  size.x /= float(t->value.size());
   
   GLint loc_size = glGetUniformLocation(gui_program_id, "size"); CHECK_GL_ERROR();
   if (loc_size == -1) std::cerr << "Pas de variable uniforme : size" << std::endl;
@@ -623,7 +668,8 @@ void init_model_1()
   update_normals(&m);
   fill_color(&m,vec3(1.0f,1.0f,1.0f));
 
-  obj[0].vao = upload_mesh_to_gpu(m);
+  petit_dino = upload_mesh_to_gpu(m);
+  obj[0].vao = petit_dino;
 
   obj[0].nb_triangle = m.connectivity.size();
   obj[0].texture_id = glhelper::load_texture("data/stegosaurus.tga");
@@ -1067,4 +1113,156 @@ void init_model_projectile2()
   obj[nb_obj - 1].texture_id = glhelper::load_texture("data/white.tga");
   obj[nb_obj - 1].visible = false;
   obj[nb_obj - 1].prog = shader_program_id;
+}
+
+
+
+
+
+
+
+
+
+GLuint vao_PV = 0;
+GLuint vbo_PV = 0;
+GLuint vboi_PV = 0;
+
+//identifiant du shader
+GLuint bar_program_id;
+static void init_model_bar()
+{
+  bar_program_id = glhelper::create_program_from_file("shaders/bar.vert", "shaders/bar.frag"); CHECK_GL_ERROR();
+  glUseProgram(bar_program_id);
+
+  glDisable(GL_DEPTH_TEST); CHECK_GL_ERROR();
+
+ float sommets[] = { 0.0f, 0.0f, 0.0f,
+ 0.0f, 1.0f, 0.0f,
+ 1.0f, 0.0f, 0.0f,
+ 1.0f, 1.0f, 0.0f
+ };
+
+  unsigned int index[]={0,1,2,2,1,3};
+
+  glGenVertexArrays(1, &vao_PV);
+  glBindVertexArray(vao_PV);
+  
+  glGenBuffers(1,&vbo_PV); CHECK_GL_ERROR();
+  
+  glBindBuffer(GL_ARRAY_BUFFER,vbo_PV); CHECK_GL_ERROR();
+  
+  glBufferData(GL_ARRAY_BUFFER,sizeof(sommets),sommets,GL_STATIC_DRAW);
+  CHECK_GL_ERROR();
+
+
+  glEnableVertexAttribArray(0); CHECK_GL_ERROR();
+
+  glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, 0); CHECK_GL_ERROR();
+
+  glGenBuffers(1,&vboi_PV);
+  
+  glBindBuffer(GL_ELEMENT_ARRAY_BUFFER,vboi_PV);
+  
+  glBufferData(GL_ELEMENT_ARRAY_BUFFER,sizeof(index),index,GL_STATIC_DRAW);
+}
+
+void draw_PV()
+{
+  glDisable(GL_DEPTH_TEST);
+  glUseProgram(bar_program_id);
+  
+  glBindVertexArray(vao_PV);
+  CHECK_GL_ERROR();
+
+  //Contour
+  GLint loc_size = glGetUniformLocation(bar_program_id, "size"); CHECK_GL_ERROR();
+  if (loc_size == -1) std::cerr << "Pas de variable uniforme : size" << std::endl;
+  glUniform2f(loc_size, 0.5f, 0.05f);     CHECK_GL_ERROR();
+
+  GLint loc_start = glGetUniformLocation(bar_program_id, "start"); CHECK_GL_ERROR();
+  if (loc_start == -1) std::cerr << "Pas de variable uniforme : start" << std::endl;
+  glUniform2f(loc_start,-0.95f, -0.95f);    CHECK_GL_ERROR();
+
+  GLint color = glGetUniformLocation(bar_program_id, "color"); CHECK_GL_ERROR();
+  if (loc_start == -1) std::cerr << "Pas de variable uniforme : color" << std::endl;
+  glUniform3f(color,1.0f, 1.0f, 1.0f);    CHECK_GL_ERROR();
+
+  glDrawElements(GL_TRIANGLES, 2*3, GL_UNSIGNED_INT, 0); CHECK_GL_ERROR();
+
+  //PV
+  loc_size = glGetUniformLocation(bar_program_id, "size"); CHECK_GL_ERROR();
+  if (loc_size == -1) std::cerr << "Pas de variable uniforme : size" << std::endl;
+  glUniform2f(loc_size, 0.48f*PV/PV_MAX, 0.03f);     CHECK_GL_ERROR();
+
+  loc_start = glGetUniformLocation(bar_program_id, "start"); CHECK_GL_ERROR();
+  if (loc_start == -1) std::cerr << "Pas de variable uniforme : start" << std::endl;
+  glUniform2f(loc_start,-0.94f, -0.94f);    CHECK_GL_ERROR();
+
+  color = glGetUniformLocation(bar_program_id, "color"); CHECK_GL_ERROR();
+  if (loc_start == -1) std::cerr << "Pas de variable uniforme : color" << std::endl;
+  glUniform3f(color,1.0f, 0.0f, 0.0f);    CHECK_GL_ERROR();
+
+  glDrawElements(GL_TRIANGLES, 2*3, GL_UNSIGNED_INT, 0); CHECK_GL_ERROR();
+}
+
+void draw_ULT()
+{
+  glDisable(GL_DEPTH_TEST);
+  glUseProgram(bar_program_id);
+  
+  glBindVertexArray(vao_PV);
+  CHECK_GL_ERROR();
+
+  //Contour
+  GLint loc_size = glGetUniformLocation(bar_program_id, "size"); CHECK_GL_ERROR();
+  if (loc_size == -1) std::cerr << "Pas de variable uniforme : size" << std::endl;
+  glUniform2f(loc_size, 0.5f, 0.05f);     CHECK_GL_ERROR();
+
+  GLint loc_start = glGetUniformLocation(bar_program_id, "start"); CHECK_GL_ERROR();
+  if (loc_start == -1) std::cerr << "Pas de variable uniforme : start" << std::endl;
+  glUniform2f(loc_start,0.45f, -0.95f);    CHECK_GL_ERROR();
+
+  GLint color = glGetUniformLocation(bar_program_id, "color"); CHECK_GL_ERROR();
+  if (loc_start == -1) std::cerr << "Pas de variable uniforme : color" << std::endl;
+  glUniform3f(color,1.0f, 1.0f, 1.0f);    CHECK_GL_ERROR();
+
+  glDrawElements(GL_TRIANGLES, 2*3, GL_UNSIGNED_INT, 0); CHECK_GL_ERROR();
+
+  //ULT
+  loc_size = glGetUniformLocation(bar_program_id, "size"); CHECK_GL_ERROR();
+  if (loc_size == -1) std::cerr << "Pas de variable uniforme : size" << std::endl;
+  glUniform2f(loc_size, 0.48f*ULT/ULT_MAX, 0.03f);     CHECK_GL_ERROR();
+
+  loc_start = glGetUniformLocation(bar_program_id, "start"); CHECK_GL_ERROR();
+  if (loc_start == -1) std::cerr << "Pas de variable uniforme : start" << std::endl;
+  glUniform2f(loc_start,0.46f, -0.94f);    CHECK_GL_ERROR();
+
+  color = glGetUniformLocation(bar_program_id, "color"); CHECK_GL_ERROR();
+  if (loc_start == -1) std::cerr << "Pas de variable uniforme : color" << std::endl;
+  glUniform3f(color,0.0f, 0.0f, 1.0f);    CHECK_GL_ERROR();
+
+  glDrawElements(GL_TRIANGLES, 2*3, GL_UNSIGNED_INT, 0); CHECK_GL_ERROR();
+}
+
+
+void init_model_1_grand()
+{
+  // Chargement d'un maillage a partir d'un fichier
+  mesh m = load_obj_file("data/stegosaurus.obj");
+
+  // Affecte une transformation sur les sommets du maillage
+  float s = 1.0f;
+  mat4 transform = mat4(   s, 0.0f, 0.0f, 0.0f,
+      0.0f,    s, 0.0f, 0.0f,
+      0.0f, 0.0f,   s , 0.0f,
+      0.0f, 0.0f, 0.0f, 1.0f);
+  apply_deformation(&m,transform);
+
+  // Centre la rotation du modele 1 autour de son centre de gravite approximatif
+  obj[0].tr.rotation_center = vec3(0.0f,0.0f,0.0f);
+
+  update_normals(&m);
+  fill_color(&m,vec3(1.0f,1.0f,1.0f));
+
+  grand_dino = upload_mesh_to_gpu(m);
 }
