@@ -39,12 +39,12 @@ const float limite = 20.0f; //Définit les dimensions de l'arène
 float angle_y_obj_0 = 0.0;
 int mouse_x = 0;
 static vec3 obj_0_pos_init = vec3(0.0f,0.0f,0.0f);
-float rayon_collision = 4.0f * 0.2f; //Le 0.2 vient du scaling du modèle
+float rayon_dino = 4.0f * 0.2f; //Le 0.2 vient du scaling du modèle
 int PV_MAX = 30; //Points de vie du joueur
 int PV = PV_MAX; //Points de vie du joueur
 bool PERDU = false; //Booléen disant si c'est perdu
 int ULT = 0; //Compteur de points de capacité ultime
-int ULT_MAX = 40; //Valeur maximale du compteur d'ultime
+int ULT_MAX = 10; //Valeur maximale du compteur d'ultime
 bool GOD_MODE = false;
 int compteur_god_mode = 0; //Nombre de tours passés en god mode
 int limite_god_mode = 5000/25; //Temps maximum passable en godmode
@@ -65,6 +65,7 @@ float cam_z = obj_0_pos_init.z + 18.0f;
 float cam_angle_x = 0.5*M_PI/2.;
 
 //Variables ennemies
+float rayon_ennemi = 0.5f;
 int nb_ennemis = 0; //Variable utilisée pour la création des ennemis en mémoire
 const int nb_ennemis_initial = 50; //Nombre d'ennemis au lancement
 const int idx_premier_ennemi = 6; //Indice dans le vecteur obj du premier ennemi, ils sont ensuite tous à la suite
@@ -130,7 +131,7 @@ static void init()
   init_model_bar();
 
   //On retire le curseur
-  glutSetCursor(GLUT_CURSOR_NONE);
+  //glutSetCursor(GLUT_CURSOR_NONE);
 }
 
 /*****************************************************************************\
@@ -176,6 +177,7 @@ static void keyboard_callback(unsigned char key, int, int)
     case 32:
     if (ULT == ULT_MAX){
       GOD_MODE = true;
+      rayon_dino = 4.0f;
       obj[0].vao = grand_dino;
       std::cout << "!" << std::endl;
       ULT = 0;
@@ -230,34 +232,37 @@ static void special_up_callback(int key, int, int)
 \*****************************************************************************/
 static void mouse_move(int x,int y){
   angle_y_obj_0 -= ((float)x-(float)mouse_x)/200;
-
+  
   mouse_x = x;
   
   mouse_x = 300;
 }
 
 static void mouse_click(int button, int state,int x, int y){
-  switch(button)
-  {
-    case GLUT_LEFT_BUTTON:
-      if (state == GLUT_DOWN){
-        //On vérifie le temps depuis la dernière création de tir avant d'afficher un nouveau tir
-        if (compteur_tir >= timer_tir){
-          compteur_tir = 0;
-          //init_model_projectile1();
-          add_projectile1();
+  //On ne peut pas tirer en mode ultime
+  if (!GOD_MODE){
+    switch(button)
+    {
+      case GLUT_LEFT_BUTTON:
+        if (state == GLUT_DOWN){
+          //On vérifie le temps depuis la dernière création de tir avant d'afficher un nouveau tir
+          if (compteur_tir >= timer_tir){
+            compteur_tir = 0;
+            //init_model_projectile1();
+            add_projectile1();
+          }
         }
-      }
-      break;
-    
-    case GLUT_RIGHT_BUTTON:
-      float distance_joueur = 1.2f; //Distance au joueur à l'apparition
-      //On change la visibilité et la position de la sphère au moment du clic plutôt que de recharger le modèle
-      if (state == GLUT_DOWN && obj[nb_obj - 1].visible == false){
-        obj[nb_obj - 1].tr.translation = vec3(obj[0].tr.translation.x + distance_joueur*sin(obj[0].tr.rotation_euler.y), 0.3f, obj[0].tr.translation.z + distance_joueur*cos(obj[0].tr.rotation_euler.y));
-        obj[nb_obj - 1].tr.rotation_euler = obj[0].tr.rotation_euler;
-        obj[nb_obj - 1].visible = true;
-      }
+        break;
+      
+      case GLUT_RIGHT_BUTTON:
+        float distance_joueur = 1.2f; //Distance au joueur à l'apparition
+        //On change la visibilité et la position de la sphère au moment du clic plutôt que de recharger le modèle
+        if (state == GLUT_DOWN && obj[nb_obj - 1].visible == false){
+          obj[nb_obj - 1].tr.translation = vec3(obj[0].tr.translation.x + distance_joueur*sin(obj[0].tr.rotation_euler.y), 0.3f, obj[0].tr.translation.z + distance_joueur*cos(obj[0].tr.rotation_euler.y));
+          obj[nb_obj - 1].tr.rotation_euler = obj[0].tr.rotation_euler;
+          obj[nb_obj - 1].visible = true;
+        }
+    }
   }
 }
 
@@ -312,8 +317,8 @@ void gestion_ennemis(){
     for (i = idx_premier_ennemi ; i < idx_premier_ennemi + max_ennemi ; i++){
       if (obj[i].visible == false){
         obj[i].visible = true;
-        float x = static_cast <float> (rand()) / (static_cast <float> (RAND_MAX/(2*(limite - rayon_collision)))) - (limite - rayon_collision);
-        float z = static_cast <float> (rand()) / (static_cast <float> (RAND_MAX/(2*(limite - rayon_collision)))) - (limite - rayon_collision);
+        float x = static_cast <float> (rand()) / (static_cast <float> (RAND_MAX/(2*(limite - rayon_ennemi)))) - (limite - rayon_ennemi);
+        float z = static_cast <float> (rand()) / (static_cast <float> (RAND_MAX/(2*(limite - rayon_ennemi)))) - (limite - rayon_ennemi);
         obj[i].tr.translation = vec3(x, 0.0, z);
         break;
       }
@@ -347,18 +352,32 @@ void gestion_ennemis(){
 
       translation = vec3(dL*sin(obj[i].tr.rotation_euler.y),0.0f,dL*cos(obj[i].tr.rotation_euler.y));
       //On teste la collision. On utilise une hitbox sphérique, uniquement vérifiée selon x et z puisqu'aucun personnage ne peut sauter
-
-      collision_joueur = (distance(i,0) < rayon_collision);
+      if (!GOD_MODE){
+        collision_joueur = (distance(i,0) < rayon_ennemi + rayon_dino);
+      }
+      //En GOD_MODE on passe en hitbox pavé car l'approximation sphérique est très visible avec un plus grod modèle
+      else{
+        float dAngle = abs(obj[0].tr.rotation_euler.y - obj[i].tr.rotation_euler.y); //Différence d'angle entre le joueur et l'ennemi
+        if (dAngle < M_PI/4 || dAngle > 3*M_PI/4){
+          collision_joueur = (distance(i,0) < rayon_ennemi + rayon_dino/2);
+        }
+        else{
+          collision_joueur = (distance(i,0) < rayon_ennemi + rayon_dino);
+        }
+      }
       
       if (!collision_joueur){
         obj[i].tr.translation.x += translation.x;
         obj[i].tr.translation.z += translation.z;
       }
       else {
-        //S'il y a collision, l'ennemi est détruit et le joueur perd un point de vie
+        //S'il y a collision, l'ennemi est détruit, le joueur perd un point de vie et gagne un point d'ulti
         obj[i].visible = false;
         if (!GOD_MODE){
           PV --;
+          if (ULT < ULT_MAX){
+            ULT++;
+          }
         }          
       }
     }
@@ -377,26 +396,28 @@ void gestion_joueur(){
   if (GOD_MODE){
     compteur_god_mode++;
     if (compteur_god_mode >= limite_god_mode){
+      rayon_dino = 4.0f * 0.2f;
+      GOD_MODE = false;
       compteur_god_mode = 0;
       obj[0].vao = petit_dino;
     }
   }
 
-  if (HAUT && obj[0].tr.translation.z > -limite + rayon_collision){
+  if (HAUT && obj[0].tr.translation.z > -limite + rayon_dino){
     obj[0].tr.translation.z -= dL;
     cam.tr.translation.z -= factor*dL*cos(cam_angle_x);
     cam.tr.translation.y += factor*dL*sin(cam_angle_x);
   }
-  if (BAS && obj[0].tr.translation.z < limite - rayon_collision){
+  if (BAS && obj[0].tr.translation.z < limite - rayon_dino){
     obj[0].tr.translation.z += dL;
     cam.tr.translation.z += factor*dL*cos(cam_angle_x);
     cam.tr.translation.y -= factor*dL*sin(cam_angle_x);
   }
-  if (GAUCHE && obj[0].tr.translation.x > -limite + rayon_collision){
+  if (GAUCHE && obj[0].tr.translation.x > -limite + rayon_dino){
     obj[0].tr.translation.x -= dL;
     cam.tr.translation.x -= factor*dL*cos(cam_angle_x);
   }
-  if (DROITE && obj[0].tr.translation.x < limite - rayon_collision){
+  if (DROITE && obj[0].tr.translation.x < limite - rayon_dino){
     obj[0].tr.translation.x += dL;
     cam.tr.translation.x += factor*dL*cos(cam_angle_x);
   }
@@ -421,11 +442,11 @@ void gestion_projectile1(){
       else{
         for (j = idx_premier_ennemi ; j < idx_premier_ennemi + max_ennemi ; j++){
           if (obj[j].visible){
-            if (distance(j,i) < rayon_collision){
+            if (distance(j,i) < rayon_ennemi){
               obj[i].visible = false; //Désaffichage du tir
               obj[j].visible = false; //Désaffichage de l'ennemi
               
-              if (ULT < ULT_MAX){
+              if (ULT < ULT_MAX && !GOD_MODE){
                 ULT++;
               }
               break;
@@ -938,8 +959,8 @@ mesh init_model_3()
   // Affecte une transformation sur les sommets du maillage
   float s = 0.01f;
 
-  float x = static_cast <float> (rand()) / (static_cast <float> (RAND_MAX/(2*(limite - rayon_collision)))) - (limite - rayon_collision);
-  float z = static_cast <float> (rand()) / (static_cast <float> (RAND_MAX/(2*(limite - rayon_collision)))) - (limite - rayon_collision);
+  float x = static_cast <float> (rand()) / (static_cast <float> (RAND_MAX/(2*(limite - rayon_ennemi)))) - (limite - rayon_ennemi);
+  float z = static_cast <float> (rand()) / (static_cast <float> (RAND_MAX/(2*(limite - rayon_ennemi)))) - (limite - rayon_ennemi);
 
   mat4 transform = mat4(   s, 0.0f, 0.0f, 0.0f,
       0.0f,    s, 0.0f, 0.50f,
@@ -966,8 +987,8 @@ void add_model3(mesh m){
   obj[idx_premier_ennemi+nb_ennemis].visible = true;
   obj[idx_premier_ennemi+nb_ennemis].prog = shader_program_id;
 
-  float x = static_cast <float> (rand()) / (static_cast <float> (RAND_MAX/(2*(limite - rayon_collision)))) - (limite - rayon_collision);
-  float z = static_cast <float> (rand()) / (static_cast <float> (RAND_MAX/(2*(limite - rayon_collision)))) - (limite - rayon_collision);
+  float x = static_cast <float> (rand()) / (static_cast <float> (RAND_MAX/(2*(limite - rayon_ennemi)))) - (limite - rayon_ennemi);
+  float z = static_cast <float> (rand()) / (static_cast <float> (RAND_MAX/(2*(limite - rayon_ennemi)))) - (limite - rayon_ennemi);
 
   obj[idx_premier_ennemi+nb_ennemis].tr.translation = vec3(x, 0.0, z);
 
@@ -1229,9 +1250,16 @@ void draw_ULT()
   glDrawElements(GL_TRIANGLES, 2*3, GL_UNSIGNED_INT, 0); CHECK_GL_ERROR();
 
   //ULT
-  loc_size = glGetUniformLocation(bar_program_id, "size"); CHECK_GL_ERROR();
-  if (loc_size == -1) std::cerr << "Pas de variable uniforme : size" << std::endl;
-  glUniform2f(loc_size, 0.48f*ULT/ULT_MAX, 0.03f);     CHECK_GL_ERROR();
+  if (!GOD_MODE){
+    loc_size = glGetUniformLocation(bar_program_id, "size"); CHECK_GL_ERROR();
+    if (loc_size == -1) std::cerr << "Pas de variable uniforme : size" << std::endl;
+    glUniform2f(loc_size, 0.48f*ULT/ULT_MAX, 0.03f);     CHECK_GL_ERROR();
+  }
+  else{
+    loc_size = glGetUniformLocation(bar_program_id, "size"); CHECK_GL_ERROR();
+    if (loc_size == -1) std::cerr << "Pas de variable uniforme : size" << std::endl;
+    glUniform2f(loc_size, 0.48f*(limite_god_mode - compteur_god_mode)/limite_god_mode, 0.03f);     CHECK_GL_ERROR();
+  }
 
   loc_start = glGetUniformLocation(bar_program_id, "start"); CHECK_GL_ERROR();
   if (loc_start == -1) std::cerr << "Pas de variable uniforme : start" << std::endl;
