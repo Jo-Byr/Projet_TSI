@@ -70,12 +70,14 @@ void draw_text(const text* const t);
 
 void init_model_1();
 void init_model_2();
-void init_model_3();
+mesh init_model_3();
+void add_model3(mesh m);
 void init_model_wall_N();
 void init_model_wall_E();
 void init_model_wall_S();
 void init_model_wall_W();
 void init_model_projectile1();
+void add_projectile1();
 void init_model_projectile2();
 
 void draw_obj3d(const objet3d* const obj, camera cam);

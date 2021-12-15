@@ -18,7 +18,7 @@ GLuint gui_program_id;
 
 camera cam;
 
-const int nb_obj = 100;
+const int nb_obj = 200;
 objet3d obj[nb_obj];
 
 const int nb_text = 2;
@@ -37,11 +37,12 @@ bool cursor = false;
 /*****************************************/
 const float limite = 20.0f; //Définit les dimensions de l'arène
 
+float angle_y_obj_0 = 0.0;
 int mouse_x = 0;
-float angle_x_obj_0 = 0.0f;
-float angle_y_obj_0 = 0.0f;
 static vec3 obj_0_pos_init = vec3(0.0f,0.0f,0.0f);
 float rayon_collision = 4.0f * 0.2f; //Le 0.2 vient du scaling du modèle
+int PV = 10; //Points de vie du joueur
+bool PERDU = false; //Booléen disant si c'est perdu
 
 //Booléens de gestion de déplacement du personnage
 bool HAUT = false;
@@ -57,9 +58,9 @@ float cam_angle_x = 0.5*M_PI/2.;
 
 //Variables ennemies
 int nb_ennemis = 0; //Variable utilisée pour la création des ennemis en mémoire
-const int nb_ennemis_initial = 20; //Nombre d'ennemis au lancement
+const int nb_ennemis_initial = 50; //Nombre d'ennemis au lancement
 const int idx_premier_ennemi = 6; //Indice dans le vecteur obj du premier ennemi, ils sont ensuite tous à la suite
-const int max_ennemi = 40; //Nombre maximal d'ennemis autorisés
+const int max_ennemi = 100; //Nombre maximal d'ennemis autorisés
 int compteur_ennemis = 0; //Compte le nombre de "tours" (25ms) depuis la dernière apparition d'un ennemi
 static int timer_ennemi = 10; //Nombre de "tours" (25ms) entre 2 apparitions d'ennemis
 
@@ -91,14 +92,16 @@ static void init()
   init_model_wall_W();
 
   //On charge tous les ennemis en mémoire, mais on en affiche que quelques-uns
+  mesh ennemi = init_model_3();
   for (int i = 0;i<max_ennemi;i++){
-    init_model_3();
+    add_model3(ennemi);
     if (i >= nb_ennemis_initial){
       obj[idx_premier_ennemi + i].visible = false;
     }
   }
 
   //On charge le modèle du tir secondaire car il est lent à charger
+  init_model_projectile1();
   init_model_projectile2();
 
   gui_program_id = glhelper::create_program_from_file("shaders/gui.vert", "shaders/gui.frag"); CHECK_GL_ERROR();
@@ -215,17 +218,19 @@ static void mouse_click(int button, int state,int x, int y){
         //On vérifie le temps depuis la dernière création de tir avant d'afficher un nouveau tir
         if (compteur_tir >= timer_tir){
           compteur_tir = 0;
-          init_model_projectile1();
+          //init_model_projectile1();
+          add_projectile1();
         }
       }
       break;
     
     case GLUT_RIGHT_BUTTON:
+      float distance_joueur = 1.2f; //Distance au joueur à l'apparition
       //On change la visibilité et la position de la sphère au moment du clic plutôt que de recharger le modèle
-      if (state == GLUT_DOWN && obj[99].visible == false){
-        obj[99].tr.translation = vec3(obj[0].tr.translation.x + 1.2f*sin(obj[0].tr.rotation_euler.y), 0.3f, obj[0].tr.translation.z + 1.2f*cos(obj[0].tr.rotation_euler.y));
-        obj[99].tr.rotation_euler = obj[0].tr.rotation_euler;
-        obj[99].visible = true;
+      if (state == GLUT_DOWN && obj[nb_obj - 1].visible == false){
+        obj[nb_obj - 1].tr.translation = vec3(obj[0].tr.translation.x + distance_joueur*sin(obj[0].tr.rotation_euler.y), 0.3f, obj[0].tr.translation.z + distance_joueur*cos(obj[0].tr.rotation_euler.y));
+        obj[nb_obj - 1].tr.rotation_euler = obj[0].tr.rotation_euler;
+        obj[nb_obj - 1].visible = true;
       }
   }
 }
@@ -236,43 +241,29 @@ static void mouse_click(int button, int state,int x, int y){
 static void timer_callback(int)
 {
   glutTimerFunc(25, timer_callback, 0);
-  
-  //On incrémente le nombre de tours sans apparition d'ennemi
-  
-  compteur_ennemis++;
-  if (compteur_ennemis >= timer_ennemi){
-    //Si on dépasse la limite timer, on remet le compteur a 0, et on fait apparaître un ennemi suuplémentaire à une position aléatoire
-    compteur_ennemis = 0;
-    for (int i = idx_premier_ennemi ; i < idx_premier_ennemi + max_ennemi ; i++){
-      if (obj[i].visible == false){
-        obj[i].visible = true;
-        float x = static_cast <float> (rand()) / (static_cast <float> (RAND_MAX/(2*(limite - rayon_collision)))) - (limite - rayon_collision);
-        float z = static_cast <float> (rand()) / (static_cast <float> (RAND_MAX/(2*(limite - rayon_collision)))) - (limite - rayon_collision);
-        obj[i].tr.translation = vec3(x, 0.0, z);
-        break;
-      }
-    }
-  }
-  
+  std::cout << PV << std::endl;
 
   //Rotation du modèle en fonction des mouvements de la souris
   if (!cursor){
     glutWarpPointer(300,300);
   }
-  obj[0].tr.rotation_euler.y = angle_y_obj_0;
 
-  //Mouvement joueur
-  gestion_joueur();
+  if (!PERDU){
+    obj[0].tr.rotation_euler.y = angle_y_obj_0;
 
-  //Mouvement ennemi + test collision
-  gestion_ennemis();  
+    //Mouvement joueur
+    gestion_joueur();
 
-  //Mouvement des projectiles + test collision
-  gestion_projectile1();
-  gestion_projectile2();
+    //Mouvement ennemi + test collision
+    gestion_ennemis();  
 
-  //Affichage du modèle
-  draw_obj3d(obj,cam);
+    //Mouvement des projectiles + test collision
+    gestion_projectile1();
+    gestion_projectile2();
+
+    //Affichage du modèle
+    draw_obj3d(obj,cam);
+  }
 
   glutPostRedisplay();
 }
@@ -288,14 +279,30 @@ void gestion_ennemis(){
 
   int i,j;
   
+  //On incrémente le nombre de tours sans apparition d'ennemi
+  compteur_ennemis++;
+  if (compteur_ennemis >= timer_ennemi){
+    //Si on dépasse la limite timer, on remet le compteur a 0, et on fait apparaître un ennemi suuplémentaire à une position aléatoire s'il reste des places en mémoire
+    compteur_ennemis = 0;
+    for (i = idx_premier_ennemi ; i < idx_premier_ennemi + max_ennemi ; i++){
+      if (obj[i].visible == false){
+        obj[i].visible = true;
+        float x = static_cast <float> (rand()) / (static_cast <float> (RAND_MAX/(2*(limite - rayon_collision)))) - (limite - rayon_collision);
+        float z = static_cast <float> (rand()) / (static_cast <float> (RAND_MAX/(2*(limite - rayon_collision)))) - (limite - rayon_collision);
+        obj[i].tr.translation = vec3(x, 0.0, z);
+        break;
+      }
+    }
+  }
+  
+  //On fait en sorte que tous les ennemis affichés à l'écran se tournent vers le joueur
   for (i = idx_premier_ennemi;i < idx_premier_ennemi + max_ennemi;i++){
     if (obj[i].visible){
-      //On fait en sorte que tous les ennemis affichés à l'écran se tournent vers le joueur
       dx = obj[i].tr.translation.x - obj[0].tr.translation.x;
       dz = obj[i].tr.translation.z - obj[0].tr.translation.z;
 
       if (dz == 0){
-        angle = -(2*signbit(obj[0].tr.translation.x) - 1)*M_PI/2;
+        angle = -(2*std::signbit(obj[0].tr.translation.x) - 1)*M_PI/2;
       }
       else{
         if (dz < 0){
@@ -323,8 +330,9 @@ void gestion_ennemis(){
         obj[i].tr.translation.z += translation.z;
       }
       else {
-        //S'il y a collision, l'ennemi est détruit
+        //S'il y a collision, l'ennemi est détruit et le joueur perd un point de vie
         obj[i].visible = false;
+        PV --;
       }
     }
   }
@@ -334,6 +342,10 @@ void gestion_ennemis(){
 void gestion_joueur(){
   float dL = 0.1f;
   float factor = 1.0;
+
+  if (PV <= 0){
+    PERDU = true;
+  }
 
   if (HAUT && obj[0].tr.translation.z > -limite + rayon_collision){
     obj[0].tr.translation.z -= dL;
@@ -388,21 +400,21 @@ void gestion_projectile1(){
 
 //Fonction de mouvement du projectile sphèrique
 void gestion_projectile2(){
-  vec3 translation = vec3(sin(obj[99].tr.rotation_euler.y)*0.2f , 0.0f , cos(obj[99].tr.rotation_euler.y)*0.2f);
+  vec3 translation = vec3(sin(obj[nb_obj - 1].tr.rotation_euler.y)*0.2f , 0.0f , cos(obj[nb_obj - 1].tr.rotation_euler.y)*0.2f);
   float rayon = 1.2f; //Rayon de collision de la sphère
 
-  if (obj[99].visible){
-    obj[99].tr.translation += translation;
+  if (obj[nb_obj - 1].visible){
+    obj[nb_obj - 1].tr.translation += translation;
     for (int i = idx_premier_ennemi ; i < max_ennemi + idx_premier_ennemi ; i++){
       //On teste la collision avec tous les ennemis visibles à l'écran
-      if(obj[i].visible && distance(i,99) < rayon){
+      if(obj[i].visible && distance(i,nb_obj - 1) < rayon){
         obj[i].visible = false; //Destruction de l'ennemi
       }
     }
 
     //Test de sortie d'arène
-    if (-limite > obj[99].tr.translation.x || obj[99].tr.translation.x > limite || -limite > obj[99].tr.translation.z || obj[99].tr.translation.z > limite){
-      obj[99].visible = false;
+    if (-limite > obj[nb_obj - 1].tr.translation.x || obj[nb_obj - 1].tr.translation.x > limite || -limite > obj[nb_obj - 1].tr.translation.z || obj[nb_obj - 1].tr.translation.z > limite){
+      obj[nb_obj - 1].visible = false;
     }
   }
 }
@@ -872,7 +884,7 @@ void init_model_wall_W()
 }
 
 
-void init_model_3()
+mesh init_model_3()
 {
   // Chargement d'un maillage a partir d'un fichier
   mesh m = load_off_file("data/armadillo_light.off");
@@ -894,13 +906,22 @@ void init_model_3()
   update_normals(&m);
   fill_color(&m,vec3(1.0f,1.0f,1.0f));
 
-  obj[idx_premier_ennemi+nb_ennemis].vao = upload_mesh_to_gpu(m);
+  obj[idx_premier_ennemi].vao = upload_mesh_to_gpu(m);
+
+  return m;
+}
+
+void add_model3(mesh m){
+  obj[idx_premier_ennemi+nb_ennemis].vao = obj[idx_premier_ennemi].vao;
 
   obj[idx_premier_ennemi+nb_ennemis].nb_triangle = m.connectivity.size();
   obj[idx_premier_ennemi+nb_ennemis].texture_id = glhelper::load_texture("data/white.tga");
 
   obj[idx_premier_ennemi+nb_ennemis].visible = true;
   obj[idx_premier_ennemi+nb_ennemis].prog = shader_program_id;
+
+  float x = static_cast <float> (rand()) / (static_cast <float> (RAND_MAX/(2*(limite - rayon_collision)))) - (limite - rayon_collision);
+  float z = static_cast <float> (rand()) / (static_cast <float> (RAND_MAX/(2*(limite - rayon_collision)))) - (limite - rayon_collision);
 
   obj[idx_premier_ennemi+nb_ennemis].tr.translation = vec3(x, 0.0, z);
 
@@ -909,7 +930,6 @@ void init_model_3()
 
 void init_model_projectile1()
 {
-  float dL = 1.5f; //Distance au joueur
   float dl = 0.05f; //Largeur
   float longueur = 0.7f;
 
@@ -993,6 +1013,11 @@ void init_model_projectile1()
   triangle_index tri11=triangle_index(5,6,7);  
   m.connectivity = {tri0, tri1, tri2, tri3, tri4, tri5, tri6, tri7, tri8, tri9, tri10, tri11};
 
+  obj[idx_premier_tir].vao = upload_mesh_to_gpu(m);
+}
+
+void add_projectile1(){
+  float dL = 1.0f; //Distance au joueur
   //On recherche le 1er emplacement libre pour un tir
   int i = 0;
   while (obj[idx_premier_tir + i].visible){
@@ -1005,9 +1030,9 @@ void init_model_projectile1()
   }
   
   obj[idx_premier_tir + i].nb_triangle = 12;
-  obj[idx_premier_tir + i].vao = upload_mesh_to_gpu(m);
 
   obj[idx_premier_tir + i].texture_id = glhelper::load_texture("data/white.tga");
+  obj[idx_premier_tir + i].vao = obj[idx_premier_tir].vao;
 
   obj[idx_premier_tir + i].visible = true;
 
@@ -1031,15 +1056,15 @@ void init_model_projectile2()
   apply_deformation(&m,transform);
 
   // Centre la rotation du modele 1 autour de son centre de gravite approximatif
-  obj[99].tr.rotation_center = vec3(0.0f,0.0f,0.0f);
+  obj[nb_obj - 1].tr.rotation_center = vec3(0.0f,0.0f,0.0f);
 
   update_normals(&m);
   fill_color(&m,vec3(1.0f,1.0f,1.0f));
 
-  obj[99].vao = upload_mesh_to_gpu(m);
+  obj[nb_obj - 1].vao = upload_mesh_to_gpu(m);
 
-  obj[99].nb_triangle = m.connectivity.size();
-  obj[99].texture_id = glhelper::load_texture("data/white.tga");
-  obj[99].visible = false;
-  obj[99].prog = shader_program_id;
+  obj[nb_obj - 1].nb_triangle = m.connectivity.size();
+  obj[nb_obj - 1].texture_id = glhelper::load_texture("data/white.tga");
+  obj[nb_obj - 1].visible = false;
+  obj[nb_obj - 1].prog = shader_program_id;
 }
