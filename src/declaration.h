@@ -25,7 +25,6 @@
 #include "vertex_opengl.hpp"
 #include "mesh.hpp"
 
-
 //matrice de transformation
 struct transformation
 {
@@ -54,6 +53,7 @@ struct objet
 struct objet3d : public objet
 {
   transformation tr;
+  float rayon;
 };
 
 struct text : public objet
@@ -69,13 +69,14 @@ void draw_text(const text* const t);
 
 
 void init_model_1();
+void init_model_1_grand();
 void init_model_2();
-void init_model_3();
-void init_model_wall_N();
-void init_model_wall_E();
+mesh init_model_3();
+void add_model3(mesh m);
+void init_walls();
 void init_model_wall_S();
-void init_model_wall_W();
 void init_model_projectile1();
+void add_projectile1();
 void init_model_projectile2();
 
 void draw_obj3d(const objet3d* const obj, camera cam);
@@ -86,3 +87,8 @@ void gestion_projectile1();
 void gestion_projectile2();
 
 float distance(int i, int j);
+
+
+static void init_model_bar();
+void draw_PV();
+void draw_ULT();
