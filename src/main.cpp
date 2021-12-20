@@ -20,7 +20,7 @@ camera cam;
 const int nb_obj = 200;
 objet3d obj[nb_obj];
 
-const int nb_text = 2;
+const int nb_text = 4;
 text text_to_draw[nb_text];
 
 /****************************************
@@ -33,9 +33,10 @@ const int screen_h = 900; //Hauteur de la fenêtre
 
 static vec3 obj_0_pos_init = vec3(0.0f,0.0f,0.0f); //Position initiale de l'avatar
 float rayon_dino = 4.0f * 0.2f; //Le 0.2 vient du scaling du modèle
-int PV_MAX = 1000; //Points de vie du joueur
+int PV_MAX = 1; //Points de vie du joueur
 int PV = PV_MAX; //Points de vie du joueur
-bool PERDU = false; //Booléen disant si c'est perdu
+bool PAUSE = false; //Booléen disant si c'est perdu
+bool GAME_OVER = false;
 int ULT = 0; //Compteur de points de capacité ultime
 int ULT_MAX = 10; //Valeur maximale du compteur d'ultime
 bool GOD_MODE = false; //Booléen à True quand le joueur est sous ultime
@@ -61,19 +62,21 @@ float cam_angle_x = M_PI/4.;
 //Variables ennemies
 float rayon_ennemi = 0.5f; //Rayon de collision des ennemis
 int nb_ennemis = 0; //Variable utilisée pour la création des ennemis en mémoire
-const int nb_ennemis_initial = 0; //Nombre d'ennemis au lancement
+const int nb_ennemis_initial = 30; //Nombre d'ennemis au lancement
 const int idx_premier_ennemi = 6; //Indice dans le vecteur obj du premier ennemi, ils sont ensuite tous à la suite
-const int max_ennemi = 0; //Nombre maximal d'ennemis autorisés
+const int max_ennemi = 50; //Nombre maximal d'ennemis autorisés
 float compteur_ennemis = 0.0f; //Compte le nombre de "tours" (25ms) depuis la dernière apparition d'un ennemi
 float timer_ennemi = 20.0f; //Nombre de "tours" (25ms) entre 2 apparitions d'ennemis
 
 //Variables projectiles
 bool SHOOT1 = false; //Booléen indiquant si le joueur maintient son clic gauche enfoncé
 bool SHOOT2 = false; //Booléen indiquant si le joueur maintient son clic droit enfoncé
-int idx_premier_tir = idx_premier_ennemi + max_ennemi; //1er emplacement dans le vecteur obj pour un tir
-const int idx_dernier_tir = nb_obj-2; //Dernier emplacement dans le vecteur obj d'un tir actuellement à l'écran
+const int idx_premier_tir = idx_premier_ennemi + max_ennemi; //1er emplacement dans le vecteur obj pour un tir
+const int idx_dernier_tir = idx_premier_tir + 50; //Dernier emplacement dans le vecteur obj d'un tir actuellement à l'écran
 int compteur_tir = 0; //Compte le nombre de "tours" depuis le dernier tir gauche
 static int timer_tir = 16; //Nombre minimal de "tours" entre 2 tirs gauches
+int mode_tir = 1; //En mode 1, le personnage tire un rayon devant lui, en mode 2 il tire dans 16 directions autour de lui
+int mode_ult = 2; //En mode 1, l'ultime est de devenir plus gros et insensible, en mode 2 on passe le mode de tir en mode 2
 
 /*****************************************************************************\
 * initialisation                                                              *
@@ -95,7 +98,6 @@ static void init()
   init_model_2();
   init_walls();
   init_model_wall_S();
-  
 
   //On charge tous les ennemis en mémoire, mais on en affiche que quelques-uns
   mesh ennemi = init_model_3();
@@ -112,21 +114,29 @@ static void init()
 
   gui_program_id = glhelper::create_program_from_file("shaders/gui.vert", "shaders/gui.frag"); CHECK_GL_ERROR();
 
-  text_to_draw[0].value = "CPE";
-  text_to_draw[0].bottomLeft = vec2(-0.2, 0.5);
-  text_to_draw[0].topRight = vec2(0.2, 1);
+  text_to_draw[0].value = "Sante";
+  text_to_draw[0].bottomLeft = vec2(-0.95, -0.9);
+  text_to_draw[0].topRight = vec2(-0.8, -0.8);
   init_text(text_to_draw);
 
   text_to_draw[1]=text_to_draw[0];
-  text_to_draw[1].value = "Lyon";
-  text_to_draw[1].bottomLeft.y = 0.0f;
-  text_to_draw[1].topRight.y = 0.5f;
+  text_to_draw[1].value = "Ultime";
+  text_to_draw[1].bottomLeft = vec2(0.45, -0.9);
+  text_to_draw[1].topRight = vec2(0.65, -0.8);
   
+  text_to_draw[2]=text_to_draw[0];
+  text_to_draw[2].value = "PAUSE";
+  text_to_draw[2].bottomLeft = vec2(-0.2, -0.1);
+  text_to_draw[2].topRight = vec2(0.2, 0.1);
+  text_to_draw[2].visible = false;
+
+  text_to_draw[3]=text_to_draw[0];
+  text_to_draw[3].value = "RESTART";
+  text_to_draw[3].bottomLeft = vec2(-0.17, -0.2);
+  text_to_draw[3].topRight = vec2(0.17, -0.05);
+  text_to_draw[3].visible = false;
 
   init_model_bar();
-
-  //On retire le curseur
-  //glutSetCursor(GLUT_CURSOR_NONE);
 }
 
 /*****************************************************************************\
@@ -140,9 +150,9 @@ static void init()
   for(int i = 0; i < nb_obj; ++i)
     draw_obj3d(obj + i, cam);
 
-  for(int i = 0; i < nb_text; ++i)
+  for(int i = 0; i < nb_text; ++i){
     draw_text(text_to_draw + i);
-
+  }
 
   draw_PV();
   draw_ULT();
@@ -170,10 +180,23 @@ static void keyboard_callback(unsigned char key, int, int)
     case 32:
     if (ULT == ULT_MAX){
       GOD_MODE = true;
-      rayon_dino = 4.0f;
-      obj[0].vao = grand_dino;
+      if (mode_ult == 1){
+        rayon_dino = 4.0f;
+        obj[0].vao = grand_dino;
+      }
+      else{
+        mode_tir = 2;
+      }
       ULT = 0;
     }
+      break;
+
+    //Touche Entrée
+    case 13:
+      if(!GAME_OVER){
+        PAUSE = !PAUSE;
+        text_to_draw[2].visible = !text_to_draw[2].visible;
+      }
       break;
   }
 }
@@ -250,8 +273,8 @@ static void mouse_move(int x,int y){
   vec3 proj = cam.projection*p_modelview;
 
   float x_norm = (2*(float)x - (float)screen_w)/(float)screen_w;
-  float y_norm = (2*(float)y - (float)screen_h)/(float)screen_h - (2*std::signbit((float)y - (float)screen_h/2) - 1)*0.1f;
-  //On ajoute un terme de correction sur y afin que l'avatar vise à l'endroit du viseur, ce décalage étant dû au fait que le tir n'est pas au ras du sol
+  float y_norm = (2*(float)y - (float)screen_h)/(float)screen_h ;
+  //On ajoute un terme de correction sur y afin que l'avatar vise à l'endroit du viseur, ce décalage étant dû au fait que le tir n'est pas au ras du sol - (2*std::signbit((float)y - (float)screen_h/2) - 1)*0.1f
 
 
   if (x_norm > proj.x){
@@ -261,14 +284,14 @@ static void mouse_move(int x,int y){
     angle_y_obj_0 = - M_PI/2 - atan((y_norm - proj.y)/(x_norm - proj.x));
   }
   
-  if (!PERDU){
+  if (!(PAUSE || GAME_OVER)){
     obj[0].tr.rotation_euler.y = angle_y_obj_0;
   }
 }
 
 static void mouse_click(int button, int state,int x, int y){
   //On ne peut pas tirer en mode ultime
-  if (!GOD_MODE){
+  if (!(GOD_MODE && mode_ult==1)){
     switch(button)
     {
       case GLUT_LEFT_BUTTON:
@@ -289,6 +312,36 @@ static void mouse_click(int button, int state,int x, int y){
         }
     }
   }
+
+  if (GAME_OVER){
+    float x_norm = (2*(float)x - (float)screen_w)/(float)screen_w;
+    float y_norm = (2*(float)y - (float)screen_h)/(float)screen_h ;
+    if (-0.17 < x_norm && x_norm < 0.17){
+      if (-0.05 < y_norm && y_norm < 0.2){
+        GAME_OVER = false;
+        text_to_draw[2].visible = false;
+        text_to_draw[3].visible = false;
+        PV = PV_MAX;
+        ULT = 0;
+        //On remet toutes les variables ennemies à leur état initial
+        compteur_ennemis = 0.0f;
+        timer_ennemi = 20.0f;
+        nb_ennemis = 0;
+        mesh ennemi = init_model_3();
+        for (int i = 0;i<max_ennemi;i++){
+          add_model3(ennemi);
+          if (i >= nb_ennemis_initial){
+            obj[idx_premier_ennemi + i].visible = false;
+          }
+        }
+        //On désaffiche tous les projectiles
+        obj[nb_obj - 1].visible = false;
+        for (int i = idx_premier_tir;i < idx_dernier_tir;i++){
+          obj[i].visible = false;
+        }
+      }
+    }
+  }
 }
 
 /*****************************************************************************\
@@ -297,31 +350,36 @@ static void mouse_click(int button, int state,int x, int y){
 static void timer_callback(int)
 {
   glutTimerFunc(25, timer_callback, 0);
-
   
-  {
-    glUseProgram(shader_program_id);
-    GLint loc_coord_boule = glGetUniformLocation(shader_program_id, "coord_boule"); CHECK_GL_ERROR();
-    if (loc_coord_boule == -1) std::cerr << "Pas de variable uniforme : coord_boule" << std::endl;
-    glUniform3f(loc_coord_boule , obj[nb_obj - 1].tr.translation.x, obj[nb_obj - 1].tr.translation.y, obj[nb_obj - 1].tr.translation.z); CHECK_GL_ERROR();
-    
-    GLint loc_visible = glGetUniformLocation(shader_program_id, "visible"); CHECK_GL_ERROR();
-    if (loc_visible == -1) std::cerr << "Pas de variable uniforme : visible" << std::endl;
-    glUniform1i(loc_visible, (int)(obj[nb_obj-1].visible));    CHECK_GL_ERROR();
-  }
-  {
-    glUseProgram(shader_program_id);
-    GLint loc_coord_tir = glGetUniformLocation(shader_program_id, "coord_tir"); CHECK_GL_ERROR();
-    if (loc_coord_tir == -1) std::cerr << "Pas de variable uniforme : coord_tir" << std::endl;
-    glUniform3f(loc_coord_tir , obj[idx_dernier_tir].tr.translation.x, obj[idx_dernier_tir].tr.translation.y, obj[idx_dernier_tir].tr.translation.z); CHECK_GL_ERROR();
-    
-    GLint loc_visible2 = glGetUniformLocation(shader_program_id, "visible2"); CHECK_GL_ERROR();
-    if (loc_visible2 == -1) std::cerr << "Pas de variable uniforme : visible2" << std::endl;
-    glUniform1i(loc_visible2, (int)(obj[idx_dernier_tir].visible));    CHECK_GL_ERROR();
-  }
+  glUseProgram(shader_program_id);
+  GLint loc_coord_boule = glGetUniformLocation(shader_program_id, "coord_boule"); CHECK_GL_ERROR();
+  if (loc_coord_boule == -1) std::cerr << "Pas de variable uniforme : coord_boule" << std::endl;
+  glUniform3f(loc_coord_boule , obj[nb_obj - 1].tr.translation.x, obj[nb_obj - 1].tr.translation.y, obj[nb_obj - 1].tr.translation.z); CHECK_GL_ERROR();
+  
+  GLint loc_visible = glGetUniformLocation(shader_program_id, "visible"); CHECK_GL_ERROR();
+  if (loc_visible == -1) std::cerr << "Pas de variable uniforme : visible" << std::endl;
+  glUniform1i(loc_visible, (int)(obj[nb_obj-1].visible));    CHECK_GL_ERROR();
+  glUseProgram(shader_program_id);
+  int tab_visible[idx_dernier_tir - idx_premier_tir];
+  vec3 tab_coord[idx_dernier_tir - idx_premier_tir];
 
+  for (int i = 0 ; i < idx_dernier_tir - idx_premier_tir ; i++){
+    tab_visible[i] = int(obj[idx_premier_tir + i].visible);
+    tab_coord[i] = obj[idx_premier_tir + i].tr.translation;
+  }
+    
+  glUseProgram(shader_program_id);
+  /*
+  GLint loc_tab_coord = glGetUniformLocation(shader_program_id, "tab_coord"); CHECK_GL_ERROR();
+  if (loc_tab_coord == -1) std::cerr << "Pas de variable uniforme : tab_coord" << std::endl;
+  glUniform3fv(loc_tab_coord ,idx_dernier_tir - idx_premier_tir , (GLfloat*)tab_coord); CHECK_GL_ERROR();
+  
+  GLint loc_tab_visible = glGetUniformLocation(shader_program_id, "tab_visible"); CHECK_GL_ERROR();
+  if (loc_tab_visible == -1) std::cerr << "Pas de variable uniforme : tab_visible" << std::endl;
+  glUniform1iv(loc_tab_visible, idx_dernier_tir - idx_premier_tir,tab_visible);    CHECK_GL_ERROR();
+  */
 
-  if (!PERDU){
+  if (!(PAUSE ||GAME_OVER)){
     //Mouvement joueur
     gestion_joueur();
 
@@ -409,8 +467,10 @@ void gestion_ennemis(){
       else {
         //S'il y a collision, l'ennemi est détruit, le joueur perd un point de vie et gagne un point d'ulti
         obj[i].visible = false;
-        if (!GOD_MODE){
+        if (!GOD_MODE || mode_ult == 2){
           PV --;
+        }
+        if (!GOD_MODE){
           if (ULT < ULT_MAX){
             ULT++;
           }
@@ -426,7 +486,10 @@ void gestion_joueur(){
   float factor = 2*(1-tan(FOV/2));//Atténuation du déplacement horizontal de la caméra par rapport au joueur
 
   if (PV <= 0){
-    PERDU = true;
+    GAME_OVER = true;
+    text_to_draw[2].value = "Game Over";
+    text_to_draw[2].visible = true;
+    text_to_draw[3].visible = true;
   }
 
   //Si le joueur maintient son clic gauche appuyé ou a clicé gauche
@@ -434,7 +497,13 @@ void gestion_joueur(){
     //On vérifie le temps depuis la dernière création de tir avant d'afficher un nouveau tir
     if (compteur_tir >= timer_tir){
       compteur_tir = 0;
-      add_projectile1();
+      std::cout << mode_tir << std::endl;
+      if (mode_tir == 1){
+        add_projectile1();
+      }
+      else{
+        add_projectile1v2();
+      }
     }
   }
 
@@ -443,7 +512,7 @@ void gestion_joueur(){
     float distance_joueur = 1.2f; //Distance au joueur à l'apparition
     //On change la visibilité et la position de la sphère au moment du clic plutôt que de recharger le modèle
     if (obj[nb_obj - 1].visible == false){
-      obj[nb_obj - 1].tr.translation = vec3(obj[0].tr.translation.x + distance_joueur*sin(obj[0].tr.rotation_euler.y), 0.3f, obj[0].tr.translation.z + distance_joueur*cos(obj[0].tr.rotation_euler.y));
+      obj[nb_obj - 1].tr.translation = vec3(obj[0].tr.translation.x + distance_joueur*sin(obj[0].tr.rotation_euler.y), 0.5f, obj[0].tr.translation.z + distance_joueur*cos(obj[0].tr.rotation_euler.y));
       obj[nb_obj - 1].tr.rotation_euler = obj[0].tr.rotation_euler;
       obj[nb_obj - 1].visible = true;
     }
@@ -452,10 +521,15 @@ void gestion_joueur(){
   if (GOD_MODE){
     compteur_god_mode++;
     if (compteur_god_mode >= limite_god_mode){
-      rayon_dino = 4.0f * 0.2f;
       GOD_MODE = false;
       compteur_god_mode = 0;
-      obj[0].vao = petit_dino;
+      if(mode_ult == 1){
+        rayon_dino = 4.0f * 0.2f;
+        obj[0].vao = petit_dino;
+      }
+      else{
+        mode_tir = 1;
+      }
     }
   }
 
@@ -517,7 +591,7 @@ void gestion_projectile1(){
 //Fonction de mouvement du projectile sphèrique
 void gestion_projectile2(){
   vec3 translation = vec3(sin(obj[nb_obj - 1].tr.rotation_euler.y)*0.2f , 0.0f , cos(obj[nb_obj - 1].tr.rotation_euler.y)*0.2f);
-  float rayon = 1.2f; //Rayon de collision de la sphère
+  float rayon = 1.0f; //Rayon de collision de la sphère
 
   if (obj[nb_obj - 1].visible){
     obj[nb_obj - 1].tr.translation += translation;
@@ -528,7 +602,7 @@ void gestion_projectile2(){
         obj[i].visible = false; //Destruction de l'ennemi
 
         //Mise à jour de l'ultime    
-        if (ULT < ULT_MAX){
+        if (ULT < ULT_MAX && !GOD_MODE){
           ULT++;
         }
       }
@@ -1070,6 +1144,35 @@ void add_projectile1(){
   obj[idx_premier_tir + i].tr.translation = vec3(obj[0].tr.translation.x + dL*sin(obj[0].tr.rotation_euler.y),0.4f, obj[0].tr.translation.z + dL*cos(obj[0].tr.rotation_euler.y));
 
   obj[idx_premier_tir + i].prog = shader_program_id;
+}
+
+void add_projectile1v2(){
+  float dL = 1.0f; //Distance au joueur
+  //On recherche le 1er emplacement libre pour un tir
+  int i = 0;
+  int nb_tirs = 0;
+  vec3 angle = obj[0].tr.rotation_euler;
+  while (nb_tirs<16 && i<=idx_dernier_tir - idx_premier_tir){
+    while (obj[idx_premier_tir + i].visible){
+      i++;
+    }
+    
+    if (i <= idx_dernier_tir - idx_premier_tir){
+      obj[idx_premier_tir + i].nb_triangle = 12;
+
+      obj[idx_premier_tir + i].texture_id = glhelper::load_texture("data/white.tga");
+      obj[idx_premier_tir + i].vao = obj[idx_premier_tir].vao;
+
+      obj[idx_premier_tir + i].visible = true;
+
+      obj[idx_premier_tir + i].tr.rotation_euler = angle;
+      obj[idx_premier_tir + i].tr.translation = vec3(obj[0].tr.translation.x + dL*sin(angle.y),0.4f, obj[0].tr.translation.z + dL*cos(angle.y));
+
+      obj[idx_premier_tir + i].prog = shader_program_id;
+      angle.y += M_PI/8;
+      nb_tirs++;
+    }
+  }
 }
 
 void init_model_projectile2()
