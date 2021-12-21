@@ -37,6 +37,7 @@ int PV_MAX = 1; //Points de vie du joueur
 int PV = PV_MAX; //Points de vie du joueur
 bool PAUSE = false; //Booléen disant si c'est perdu
 bool GAME_OVER = false;
+bool STARTED = false;
 int ULT = 0; //Compteur de points de capacité ultime
 int ULT_MAX = 10; //Valeur maximale du compteur d'ultime
 bool GOD_MODE = false; //Booléen à True quand le joueur est sous ultime
@@ -76,7 +77,7 @@ const int idx_dernier_tir = idx_premier_tir + 50; //Dernier emplacement dans le 
 int compteur_tir = 0; //Compte le nombre de "tours" depuis le dernier tir gauche
 static int timer_tir = 16; //Nombre minimal de "tours" entre 2 tirs gauches
 int mode_tir = 1; //En mode 1, le personnage tire un rayon devant lui, en mode 2 il tire dans 16 directions autour de lui
-int mode_ult = 2; //En mode 1, l'ultime est de devenir plus gros et insensible, en mode 2 on passe le mode de tir en mode 2
+int mode_ult = 0; //En mode 1, l'ultime est de devenir plus gros et insensible, en mode 2 on passe le mode de tir en mode 2
 
 /*****************************************************************************\
 * initialisation                                                              *
@@ -98,14 +99,15 @@ static void init()
   init_model_2();
   init_walls();
   init_model_wall_S();
-
+  
+  init_model_choice1();
+  init_model_choice2();
+  init_model_start();
   //On charge tous les ennemis en mémoire, mais on en affiche que quelques-uns
   mesh ennemi = init_model_3();
   for (int i = 0;i<max_ennemi;i++){
     add_model3(ennemi);
-    if (i >= nb_ennemis_initial){
-      obj[idx_premier_ennemi + i].visible = false;
-    }
+    obj[idx_premier_ennemi + i].visible = false;
   }
 
   //On charge le modèle du tir secondaire car il est lent à charger
@@ -178,13 +180,13 @@ static void keyboard_callback(unsigned char key, int, int)
 
     //Barre d'espace
     case 32:
-    if (ULT == ULT_MAX){
+    if (ULT == ULT_MAX && mode_ult!=0){
       GOD_MODE = true;
       if (mode_ult == 1){
         rayon_dino = 4.0f;
         obj[0].vao = grand_dino;
       }
-      else{
+      else if (mode_ult == 2){
         mode_tir = 2;
       }
       ULT = 0;
@@ -276,7 +278,6 @@ static void mouse_move(int x,int y){
   float y_norm = (2*(float)y - (float)screen_h)/(float)screen_h ;
   //On ajoute un terme de correction sur y afin que l'avatar vise à l'endroit du viseur, ce décalage étant dû au fait que le tir n'est pas au ras du sol - (2*std::signbit((float)y - (float)screen_h/2) - 1)*0.1f
 
-
   if (x_norm > proj.x){
     angle_y_obj_0 = M_PI/2 - atan((y_norm - proj.y)/(x_norm - proj.x));
   }
@@ -323,22 +324,26 @@ static void mouse_click(int button, int state,int x, int y){
         text_to_draw[3].visible = false;
         PV = PV_MAX;
         ULT = 0;
+        obj[0].vao = petit_dino;
         //On remet toutes les variables ennemies à leur état initial
         compteur_ennemis = 0.0f;
         timer_ennemi = 20.0f;
-        nb_ennemis = 0;
-        mesh ennemi = init_model_3();
+        
         for (int i = 0;i<max_ennemi;i++){
-          add_model3(ennemi);
-          if (i >= nb_ennemis_initial){
-            obj[idx_premier_ennemi + i].visible = false;
-          }
+          obj[idx_premier_ennemi + i].visible = false;
         }
         //On désaffiche tous les projectiles
         obj[nb_obj - 1].visible = false;
-        for (int i = idx_premier_tir;i < idx_dernier_tir;i++){
+        for (int i = idx_premier_tir;i <= idx_dernier_tir;i++){
           obj[i].visible = false;
         }
+        STARTED = false;
+        obj[nb_obj - 4].visible = true;
+        obj[nb_obj - 3].visible = true;
+        obj[nb_obj - 2].visible = true;
+        obj[0].tr.translation = vec3(0.0f,0.0f,0.0f);
+        cam.tr.translation = vec3(cam_x,cam_y,cam_z);
+        cam.tr.rotation_euler = vec3(cam_angle_x, 0.0f, 0.0f);
       }
     }
   }
@@ -497,11 +502,10 @@ void gestion_joueur(){
     //On vérifie le temps depuis la dernière création de tir avant d'afficher un nouveau tir
     if (compteur_tir >= timer_tir){
       compteur_tir = 0;
-      std::cout << mode_tir << std::endl;
       if (mode_tir == 1){
         add_projectile1();
       }
-      else{
+      else if (mode_tir == 2){
         add_projectile1v2();
       }
     }
@@ -551,6 +555,49 @@ void gestion_joueur(){
     obj[0].tr.translation.x += dL;
     cam.tr.translation.x += factor*dL;
   }
+  
+  //Le joueur peut tester les 2 capacités ultimes avant que le jeu ne commence
+  if (!STARTED){
+    compteur_ennemis = 0;
+    if (!GOD_MODE){
+      ULT = ULT_MAX;
+      compteur_god_mode = 0;
+    }
+    
+    if(-10.0f <= obj[0].tr.translation.x && obj[0].tr.translation.x <= -5.0f && -2.5f <= obj[0].tr.translation.z && obj[0].tr.translation.z <= 2.5f){
+      mode_ult = 1;
+    }
+    else if (5.0f <= obj[0].tr.translation.x && obj[0].tr.translation.x <= 10.0f && -2.5f <= obj[0].tr.translation.z && obj[0].tr.translation.z <= 2.5f){
+      mode_ult = 2;
+      obj[0].vao = petit_dino;
+      rayon_dino = 4.0f * 0.2f;
+    }
+    else if(-2.5f <= obj[0].tr.translation.x && obj[0].tr.translation.x <= 2.5f && 7.5f <= obj[0].tr.translation.z && obj[0].tr.translation.z <= 12.5f){
+      STARTED = true;
+      ULT = 0;
+      mode_tir = 1;
+      obj[0].vao = petit_dino;
+      rayon_dino = 4.0f * 0.2f;
+      GOD_MODE = false;
+      timer_ennemi = 20.0f;
+      compteur_ennemis = 0.0f;
+
+      for (int i = idx_premier_tir ; i <= idx_dernier_tir ; i++){
+        obj[i].visible = false;
+      }
+      obj[nb_obj-1].visible = false;
+
+      for (int i = idx_premier_ennemi ; i < idx_premier_ennemi + nb_ennemis_initial ; i++){
+        obj[i].visible = true;
+      }
+      obj[nb_obj - 4].visible = false;
+      obj[nb_obj - 3].visible = false;
+      obj[nb_obj - 2].visible = false;
+      text_to_draw[0].visible = true;
+      text_to_draw[1].visible = true;
+    }
+  }
+  
 }
 
 //Déplace et teste les collisions de chaque "tir gauche" actuellement à l'écran
@@ -1353,4 +1400,159 @@ void init_model_1_grand()
   fill_color(&m,vec3(1.0f,1.0f,1.0f));
 
   grand_dino = upload_mesh_to_gpu(m);
+}
+
+
+
+void init_model_choice1()
+{
+  mesh m;
+
+  //coordonnees geometriques des sommets
+  vec3 p0=vec3(0.0f,0.01f,0.0f);
+  vec3 p1=vec3( 5.0f,0.01f,0.0f);
+  vec3 p2=vec3( 5.0f,0.01f, 5.0f);
+  vec3 p3=vec3(0.0f,0.01f, 5.0f);
+
+  //normales pour chaque sommet
+  vec3 n0=vec3(0.0f,1.0f,0.0f);
+  vec3 n1=n0;
+  vec3 n2=n0;
+  vec3 n3=n0;
+
+  //couleur pour chaque sommet
+  vec3 c0=vec3(1.0f,1.0f,1.0f);
+  vec3 c1=c0;
+  vec3 c2=c0;
+  vec3 c3=c0;
+
+  //texture du sommet
+  vec2 t0=vec2(0.0f,0.0f);
+  vec2 t1=vec2(1.0f,0.0f);
+  vec2 t2=vec2(1.0f,1.0f);
+  vec2 t3=vec2(0.0f,1.0f);
+
+  vertex_opengl v0=vertex_opengl(p0,n0,c0,t0);
+  vertex_opengl v1=vertex_opengl(p1,n1,c1,t1);
+  vertex_opengl v2=vertex_opengl(p2,n2,c2,t2);
+  vertex_opengl v3=vertex_opengl(p3,n3,c3,t3);
+
+  m.vertex = {v0, v1, v2, v3};
+
+  //indice des triangles
+  triangle_index tri0=triangle_index(0,1,2);
+  triangle_index tri1=triangle_index(0,2,3);  
+  m.connectivity = {tri0, tri1};
+
+  obj[nb_obj-2].nb_triangle = 2;
+  obj[nb_obj-2].vao = upload_mesh_to_gpu(m);
+
+  obj[nb_obj-2].texture_id = glhelper::load_texture("data/test1.tga");
+
+  obj[nb_obj-2].visible = true;
+  obj[nb_obj-2].prog = shader_program_id;
+
+  obj[nb_obj-2].tr.translation += vec3(-10.0f,0.0f,-2.5f);
+}
+
+void init_model_choice2()
+{
+  mesh m;
+
+  //coordonnees geometriques des sommets  
+  vec3 p0=vec3(0.0f,0.01f,0.0f);
+  vec3 p1=vec3( 5.0f,0.01f,0.0f);
+  vec3 p2=vec3( 5.0f,0.01f, 5.0f);
+  vec3 p3=vec3(0.0f,0.01f, 5.0f);
+
+  //normales pour chaque sommet
+  vec3 n0=vec3(0.0f,1.0f,0.0f);
+  vec3 n1=n0;
+  vec3 n2=n0;
+  vec3 n3=n0;
+
+  //couleur pour chaque sommet
+  vec3 c0=vec3(1.0f,1.0f,1.0f);
+  vec3 c1=c0;
+  vec3 c2=c0;
+  vec3 c3=c0;
+
+  //texture du sommet
+  vec2 t0=vec2(0.0f,0.0f);
+  vec2 t1=vec2(1.0f,0.0f);
+  vec2 t2=vec2(1.0f,1.0f);
+  vec2 t3=vec2(0.0f,1.0f);
+
+  vertex_opengl v0=vertex_opengl(p0,n0,c0,t0);
+  vertex_opengl v1=vertex_opengl(p1,n1,c1,t1);
+  vertex_opengl v2=vertex_opengl(p2,n2,c2,t2);
+  vertex_opengl v3=vertex_opengl(p3,n3,c3,t3);
+
+  m.vertex = {v0, v1, v2, v3};
+
+  //indice des triangles
+  triangle_index tri0=triangle_index(0,1,2);
+  triangle_index tri1=triangle_index(0,2,3);  
+  m.connectivity = {tri0, tri1};
+  
+  obj[nb_obj-3].nb_triangle = 2;
+  obj[nb_obj-3].vao = upload_mesh_to_gpu(m);
+
+  obj[nb_obj-3].texture_id = glhelper::load_texture("data/test2.tga");
+
+  obj[nb_obj-3].visible = true;
+  obj[nb_obj-3].prog = shader_program_id;
+
+  obj[nb_obj-3].tr.translation += vec3(5.0f,0.0f,-2.5f);
+}
+
+void init_model_start()
+{
+  mesh m;
+
+  //coordonnees geometriques des sommets  
+  vec3 p0=vec3(0.0f,0.01f,0.0f);
+  vec3 p1=vec3( 5.0f,0.01f,0.0f);
+  vec3 p2=vec3( 5.0f,0.01f, 5.0f);
+  vec3 p3=vec3(0.0f,0.01f, 5.0f);
+
+  //normales pour chaque sommet
+  vec3 n0=vec3(0.0f,1.0f,0.0f);
+  vec3 n1=n0;
+  vec3 n2=n0;
+  vec3 n3=n0;
+
+  //couleur pour chaque sommet
+  vec3 c0=vec3(1.0f,1.0f,1.0f);
+  vec3 c1=c0;
+  vec3 c2=c0;
+  vec3 c3=c0;
+
+  //texture du sommet
+  vec2 t0=vec2(0.0f,0.0f);
+  vec2 t1=vec2(1.0f,0.0f);
+  vec2 t2=vec2(1.0f,1.0f);
+  vec2 t3=vec2(0.0f,1.0f);
+
+  vertex_opengl v0=vertex_opengl(p0,n0,c0,t0);
+  vertex_opengl v1=vertex_opengl(p1,n1,c1,t1);
+  vertex_opengl v2=vertex_opengl(p2,n2,c2,t2);
+  vertex_opengl v3=vertex_opengl(p3,n3,c3,t3);
+
+  m.vertex = {v0, v1, v2, v3};
+
+  //indice des triangles
+  triangle_index tri0=triangle_index(0,1,2);
+  triangle_index tri1=triangle_index(0,2,3);  
+  m.connectivity = {tri0, tri1};
+  
+  obj[nb_obj-4].nb_triangle = 2;
+  obj[nb_obj-4].vao = upload_mesh_to_gpu(m);
+
+  obj[nb_obj-4].texture_id = glhelper::load_texture("data/test3.tga");
+
+  obj[nb_obj-4].visible = true;
+  obj[nb_obj-4].prog = shader_program_id;
+
+  obj[nb_obj-4].tr.translation += vec3(-2.5f,0.0f,7.5f);
 }
