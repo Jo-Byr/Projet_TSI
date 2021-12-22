@@ -70,14 +70,28 @@ void draw_text(const text* const t);
 
 void init_model_1();
 void init_model_1_grand();
+
 void init_model_2();
+
 mesh init_model_3();
 void add_model3(mesh m);
+
 void init_walls();
 void init_model_wall_S();
+
 void init_model_projectile1();
 void add_projectile1();
+void add_projectile1v2();
+
 void init_model_projectile2();
+
+static void init_model_bar();
+void draw_PV();
+void draw_ULT();
+
+void init_model_choice1();
+void init_model_choice2();
+void init_model_start();
 
 void draw_obj3d(const objet3d* const obj, camera cam);
 
@@ -88,7 +102,4 @@ void gestion_projectile2();
 
 float distance(int i, int j);
 
-
-static void init_model_bar();
-void draw_PV();
-void draw_ULT();
+void test();
