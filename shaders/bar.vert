@@ -11,7 +11,6 @@ uniform vec3 color;
 void main (void)
 {
   //Coordonnees du sommet
-  //gl_Position = vec4(position,1.0);
   vec2 p = position.xy * size + start;
 
   gl_Position = vec4(p, 0., 1.);

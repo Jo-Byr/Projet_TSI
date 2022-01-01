@@ -15,6 +15,7 @@ uniform vec4 translation_view;
 
 uniform mat4 projection;
 
+
 out vec3 coordonnee_3d;
 out vec3 coordonnee_3d_locale;
 out vec3 vnormale;

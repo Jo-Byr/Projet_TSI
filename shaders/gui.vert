@@ -17,6 +17,5 @@ void main (void)
   vec2 p = position.xy * size + start;
 
   gl_Position = vec4(p, 0., 1.);
-  //gl_Position = vec4(position, 1.);
 
 }

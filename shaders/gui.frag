@@ -9,7 +9,6 @@ uniform int c;
 
 void main (void)
 {
-
   int ascii_offset = 32;                // ASCII code of 1st char in texture file is 32
   int width        = 30;                // 30 char per line in texture file
   float x_tick     = 0.0333f;           // .. so 1/30 char horizontally
