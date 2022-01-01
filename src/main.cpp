@@ -166,7 +166,6 @@ static void init()
   //Affichage des barres de santé et de capacité ultime
   draw_PV();
   draw_ULT();
-  test();
   
   glutSwapBuffers();
 }
@@ -301,51 +300,6 @@ static void mouse_move(int x,int y){
   if (!(PAUSE || GAME_OVER)){
     obj[0].tr.rotation_euler.y = angle_y_obj_0 - 0.1*sin(2*angle_y_obj_0);
   }
-  /*
-  //TEST
-  mat4 rotation_x_e;
-  mat4 rotation_y_e;
-  mat4 rotation_z_e;
-
-  float distance_min = 3.0f;
-  float distance;
-  int idx = 0;
-  float x_e,y_e;
-
-  for (int i = idx_premier_ennemi ; i < idx_premier_ennemi + max_ennemi ; i++){
-    if (obj[i].visible){
-      rotation_x_e = matrice_rotation(obj[i].tr.rotation_euler.x, 1.0f, 0.0f, 0.0f);
-      rotation_y_e = matrice_rotation(obj[i].tr.rotation_euler.y, 0.0f, 1.0f, 0.0f);
-      rotation_z_e = matrice_rotation(obj[i].tr.rotation_euler.z, 0.0f, 0.0f, 1.0f);
-
-      rotation_model = rotation_x_e * rotation_y_e * rotation_z_e;
-
-      position = obj[i].tr.translation;
-      rotation_center_model = obj[i].tr.rotation_center;
-
-      p_model = rotation_center_model+position;
-
-
-      p_modelview = rotation_view*(p_model-rotation_center_view)+rotation_center_view-translation_view;
-      proj = cam.projection*p_modelview;
-      proj.y = -proj.y; //Le y a le mauvais signe, je ne saos pas pourquoi
-
-      distance = std::pow(std::pow(x_norm - proj.x , 2) + std::pow(y_norm - proj.y , 2), 0.5f);
-      std::cout << "proj : " << proj.x << " " << proj.y << "\n mouse : " << x_norm << " " << y_norm << "\ndistance : " << distance << std::endl;
-      if (distance < distance_min){
-        distance_min = distance;
-        idx = i;
-        x_e = proj.x;
-        y_e = proj.y;
-      }
-    }
-    
-  }
-  
-  if (distance_min < 0.05f){
-    glutWarpPointer((x_e*(float)screen_w + (float)screen_w)/2,(y_e*(float)screen_h + (float)screen_h)/2);
-  }
-  */
 }
 
 static void mouse_click(int button, int state,int x, int y){
@@ -422,9 +376,6 @@ static void mouse_click(int button, int state,int x, int y){
 static void timer_callback(int)
 {
   glutTimerFunc(25, timer_callback, 0);
-
-  //TEST : Passage des projectiles principaux dans le shader pour en faire des sources de lumière
-
   if (!(PAUSE ||GAME_OVER)){
     //Mouvement joueur
     gestion_joueur();
@@ -508,10 +459,10 @@ void gestion_ennemis(){
         }
         else{
           if (dx < 0){
-            angle = M_PI - abs(atan(dx/dz));
+            angle = M_PI + atan(dx/dz);
           }
           else{
-            angle = -(M_PI - atan(dx/dz));
+            angle = -M_PI + atan(dx/dz);
           }
         }
       }
@@ -1354,7 +1305,7 @@ void init_model_projectile1()
   triangle_index tri0=triangle_index(0,1,2);
   triangle_index tri1=triangle_index(1,2,3);  
   triangle_index tri2=triangle_index(2,3,6);
-  triangle_index tri3=triangle_index(3,6,7);  
+  triangle_index tri3=triangle_index(3,6,7);
   triangle_index tri4=triangle_index(3,5,7);
   triangle_index tri5=triangle_index(1,3,5);  
   triangle_index tri6=triangle_index(2,4,6);
@@ -1629,7 +1580,7 @@ void init_model_choice1()
   obj[nb_obj-2].nb_triangle = 2;
   obj[nb_obj-2].vao = upload_mesh_to_gpu(m);
 
-  obj[nb_obj-2].texture_id = glhelper::load_texture("data/test1.tga");
+  obj[nb_obj-2].texture_id = glhelper::load_texture("data/choice1.tga");
 
   obj[nb_obj-2].visible = true;
   obj[nb_obj-2].prog = shader_program_id;
@@ -1681,7 +1632,7 @@ void init_model_choice2()
   obj[nb_obj-3].nb_triangle = 2;
   obj[nb_obj-3].vao = upload_mesh_to_gpu(m);
 
-  obj[nb_obj-3].texture_id = glhelper::load_texture("data/test2.tga");
+  obj[nb_obj-3].texture_id = glhelper::load_texture("data/choice2.tga");
 
   obj[nb_obj-3].visible = true;
   obj[nb_obj-3].prog = shader_program_id;
@@ -1733,74 +1684,10 @@ void init_model_start()
   obj[nb_obj-4].nb_triangle = 2;
   obj[nb_obj-4].vao = upload_mesh_to_gpu(m);
 
-  obj[nb_obj-4].texture_id = glhelper::load_texture("data/test3.tga");
+  obj[nb_obj-4].texture_id = glhelper::load_texture("data/start.tga");
 
   obj[nb_obj-4].visible = true;
   obj[nb_obj-4].prog = shader_program_id;
 
   obj[nb_obj-4].tr.translation += vec3(-2.5f,0.0f,7.5f);
-}
-
-void test()
-{
-  mat4 rotation_x_cam = matrice_rotation(cam.tr.rotation_euler.x, 1.0f, 0.0f, 0.0f);
-  mat4 rotation_y_cam = matrice_rotation(cam.tr.rotation_euler.y, 0.0f, 1.0f, 0.0f);
-  mat4 rotation_z_cam = matrice_rotation(cam.tr.rotation_euler.z, 0.0f, 0.0f, 1.0f);
-  
-  mat4 rotation_view = rotation_x_cam * rotation_y_cam * rotation_z_cam;
-  vec3 rotation_center_view = cam.tr.rotation_center;
-  vec3 translation_view = cam.tr.translation;
-  
-  mat4 rotation_x;
-  mat4 rotation_y;
-  mat4 rotation_z;
-
-  mat4 rotation_model;
-
-  vec3 position;
-  vec3 rotation_center_model;
-
-  vec3 p_model;
-
-  vec3 p_modelview;
-  vec3 proj;
-
-  glDisable(GL_DEPTH_TEST);
-  glUseProgram(bar_program_id);
-
-  for (int i = idx_premier_ennemi ; i < idx_premier_ennemi + max_ennemi ; i++){
-    if (obj[i].visible){
-      rotation_x = matrice_rotation(obj[i].tr.rotation_euler.x, 1.0f, 0.0f, 0.0f);
-      rotation_y = matrice_rotation(obj[i].tr.rotation_euler.y, 0.0f, 1.0f, 0.0f);
-      rotation_z = matrice_rotation(obj[i].tr.rotation_euler.z, 0.0f, 0.0f, 1.0f);
-
-      rotation_model = rotation_x * rotation_y * rotation_z;
-
-      position = obj[i].tr.translation;
-      rotation_center_model = obj[i].tr.rotation_center;
-
-      p_model = rotation_center_model+position;
-
-      p_modelview = rotation_view*(p_model-rotation_center_view)+rotation_center_view-translation_view;
-      proj = cam.projection*p_modelview;
-
-  
-      glBindVertexArray(vao_bar);
-      CHECK_GL_ERROR();
-
-      GLint loc_size = glGetUniformLocation(bar_program_id, "size"); CHECK_GL_ERROR();
-      if (loc_size == -1) std::cerr << "Pas de variable uniforme : size" << std::endl;
-      glUniform2f(loc_size, 0.05f, 0.01f);     CHECK_GL_ERROR();
-
-      GLint loc_start = glGetUniformLocation(bar_program_id, "start"); CHECK_GL_ERROR();
-      if (loc_start == -1) std::cerr << "Pas de variable uniforme : start" << std::endl;
-      glUniform2f(loc_start,proj.x-0.025f, proj.y+0.1f);    CHECK_GL_ERROR();
-
-      GLint color = glGetUniformLocation(bar_program_id, "color"); CHECK_GL_ERROR();
-      if (loc_start == -1) std::cerr << "Pas de variable uniforme : color" << std::endl;
-      glUniform3f(color,1.0f, 0.0f, 0.0f);    CHECK_GL_ERROR();
-
-      glDrawElements(GL_TRIANGLES, 2*3, GL_UNSIGNED_INT, 0); CHECK_GL_ERROR();
-    }
-  }
 }

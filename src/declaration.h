@@ -101,5 +101,3 @@ void gestion_projectile1();
 void gestion_projectile2();
 
 float distance(int i, int j);
-
-void test();
