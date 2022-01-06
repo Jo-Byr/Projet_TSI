@@ -1,7 +1,3 @@
-/*TODO : 
-Centrer le perso au démaragge et faire bouger la caméra pour garder un champ de vue intéressant
-Faire regarder le dino vers le pointeur
-*/
 /*****************************************************************************\
  * TP CPE, 4ETI, TP synthese d'images
  * --------------
@@ -33,7 +29,7 @@ const int screen_h = 900; //Hauteur de la fenêtre
 
 static vec3 obj_0_pos_init = vec3(0.0f,0.0f,0.0f); //Position initiale de l'avatar
 float rayon_dino = 4.0f * 0.2f; //Le 0.2 vient du scaling du modèle
-int PV_MAX = 100; //Points de vie du joueur
+int PV_MAX = 40; //Points de vie du joueur
 int PV = PV_MAX; //Points de vie du joueur
 bool PAUSE = false; //Booléen disant si le jeu est en pause
 bool GAME_OVER = false; //Booléen disant si le joueur a perdu tous ses PV
@@ -180,10 +176,21 @@ static void keyboard_callback(unsigned char key, int, int)
     case 'p':
       glhelper::print_screen();
       break;
+    case 'z':
+    case 'Z':
+      HAUT = true;
+      break;
+    case 's':
+    case 'S':
+      BAS = true;
+      break;
     case 'q':
     case 'Q':
-    case 27:
-      exit(0);
+      GAUCHE = true;
+      break;
+    case 'd':
+    case 'D':
+      DROITE = true;
       break;
 
     //Barre d'espace : enclenchement de la capacité ultime
@@ -215,42 +222,24 @@ static void keyboard_callback(unsigned char key, int, int)
   }
 }
 
-/*****************************************************************************\
-* special_callback                                                            *
-\*****************************************************************************/
-static void special_callback(int key, int, int)
+static void keyboard_up_callback(unsigned char key, int, int)
 {
   switch(key)
   {
-    case GLUT_KEY_UP:
-      HAUT = true;
-      break;
-    case GLUT_KEY_DOWN:
-      BAS = true;
-      break;
-    case GLUT_KEY_LEFT:
-      GAUCHE = true;
-      break;
-    case GLUT_KEY_RIGHT:
-      DROITE = true;
-      break;
-  }
-}
-
-static void special_up_callback(int key, int, int)
-{
-  switch(key)
-  {
-    case GLUT_KEY_UP:
+    case 'z':
+    case 'Z':
       HAUT = false;
       break;
-    case GLUT_KEY_DOWN:
+    case 's':
+    case 'S':
       BAS = false;
       break;
-    case GLUT_KEY_LEFT:
+    case 'q':
+    case 'Q':
       GAUCHE = false;
       break;
-    case GLUT_KEY_RIGHT:
+    case 'd':
+    case 'D':
       DROITE = false;
       break;
   }
@@ -598,6 +587,8 @@ void gestion_joueur(){
       GOD_MODE = false;
       timer_ennemi = 20.0f;
       compteur_apparition_ennemis = 0.0f;
+      limite_god_mode = 5000/25;
+      compteur_god_mode = 0;
 
       for (int i = idx_premier_tir ; i <= idx_dernier_tir ; i++){
         obj[i].visible = false;
@@ -795,8 +786,7 @@ int main(int argc, char** argv)
 
   glutDisplayFunc(display_callback);
   glutKeyboardFunc(keyboard_callback);
-  glutSpecialFunc(special_callback);
-  glutSpecialUpFunc(special_up_callback);
+  glutKeyboardUpFunc(keyboard_up_callback);
 
   //Fonction de mouvement et clic de la souris
   glutPassiveMotionFunc(mouse_move);
@@ -1098,8 +1088,8 @@ void init_model_wall_S()
   //texture du sommet
   vec2 t0=vec2(0.0f,0.0f);
   vec2 t1=vec2(1.0f,0.0f);
-  vec2 t2=vec2(1.0f,1.0f);
-  vec2 t3=vec2(0.0f,1.0f);
+  vec2 t2=vec2(0.0f,0.05f);
+  vec2 t3=vec2(1.0f,0.05f);
 
   vertex_opengl v0=vertex_opengl(p0,n0,c0,t0);
   vertex_opengl v1=vertex_opengl(p1,n1,c1,t1);
@@ -1147,8 +1137,8 @@ void init_walls(){
   //texture du sommet
   vec2 t0=vec2(0.0f,0.0f);
   vec2 t1=vec2(1.0f,0.0f);
-  vec2 t2=vec2(1.0f,1.0f);
-  vec2 t3=vec2(0.0f,1.0f);
+  vec2 t2=vec2(0.0f,0.25f);
+  vec2 t3=vec2(1.0f,0.25f);
 
   vertex_opengl v0=vertex_opengl(p0,n0,c0,t0);
   vertex_opengl v1=vertex_opengl(p1,n1,c1,t1);
